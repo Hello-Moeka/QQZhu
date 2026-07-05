@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>后台管理 - 歌单</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-image: url('{{ settings.background_url }}');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #333;
+        }
+        .navbar {
+            width: 100%;
+            background-color: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        .navbar a {
+            color: #888;
+            text-decoration: none;
+            font-size: 18px;
+            margin: 0 25px;
+            padding: 10px 15px;
+            border-radius: 5px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .navbar a:hover {
+            background-color: rgba(108, 122, 224, 0.1);
+            color: #6c7ae0;
+        }
+        .container {
+            background-color: rgba(255, 255, 255, 0.92);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            width: 90%;
+            max-width: 1200px;
+            margin: 24px 0;
+        }
+        h1 {
+            margin-top: 0;
+            color: #6c7ae0;
+        }
+        .panel {
+            border: 1px solid #e5e5e5;
+            border-radius: 10px;
+            padding: 18px;
+            margin-bottom: 18px;
+            background: #fff;
+        }
+        .panel h2 {
+            margin: 0 0 12px;
+            font-size: 20px;
+            color: #444;
+        }
+        label {
+            display: block;
+            margin: 8px 0 4px;
+            font-weight: bold;
+            color: #444;
+        }
+        input[type="text"], input[type="number"], textarea {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        .actions {
+            margin-top: 10px;
+            text-align: right;
+        }
+        button {
+            background-color: #6c7ae0;
+            color: #fff;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s ease;
+        }
+        button:hover { background-color: #5763c6; }
+        .message {
+            margin-bottom: 12px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            background: #eef2ff;
+            color: #3748a0;
+        }
+        .song-list { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 8px; border-bottom: 1px solid #e5e5e5; text-align: left; }
+        .small-input { width: 100%; max-width: 200px; }
+        .backup-box {
+            align-items: center;
+            align-items: center;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .tips { font-size: 13px; color: #666; margin-top: 4px; }
+        
+        .file-input {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        .file-input input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        .file-input .btn {
+            background-color: #f0f2ff;
+            color: #3748a0;
+            border: 1px solid #d0d6f5;
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 140px;
+            justify-content: center;
+            height: 20px;
+            line-height: 20px;
+            white-space: nowrap;
+        }
+        .file-input .btn:hover { background-color: #e4e8ff; }
+        
+        .info-link {
+            color: #6c7ae0;
+            text-decoration: none;
+            font-size: 13px;
+        }
+        .info-link:hover { text-decoration: underline; }
+        .file-input .btn #file-label {
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            display: inline-block;
+        }
+        .file-input .filename {
+            margin-left: 8px;
+            font-size: 13px;
+            color: #555;
+        }
+        .backup-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .backup-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 14px;
+            border-radius: 6px;
+            background: #eef2ff;
+            color: #3748a0;
+            border: 1px solid #d0d6f5;
+            text-decoration: none;
+            font-size: 13px;
+            transition: background-color 0.2s ease;
+            min-width: 143px;
+            height: 20px;
+            line-height: 20px;
+            font-weight: 600;
+            justify-content: center;
+        }
+        .btn-secondary:hover { background: #e4e8ff; }
+
+        @media (max-width: 768px) {
+            .container { padding: 16px; }
+            .navbar a { margin: 0 10px; font-size: 16px; }
+            .small-input { max-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <style>
+        /* Toast 提示样式 */
+        #toast-container {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 2000;
+            max-width: 320px;
+        }
+        .toast {
+            padding: 12px 14px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+            background: #f0f4ff;
+            color: #1f3b8e;
+            font-size: 14px;
+            border: 1px solid #d8e2ff;
+            animation: fadeIn 0.2s ease, slideIn 0.2s ease;
+        }
+        .toast.success { background: #e8f7ef; color: #1f7a3d; border-color: #c7edd8; }
+        .toast.error { background: #fdecea; color: #b23024; border-color: #f7c6c2; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideIn { from { transform: translateY(-6px); } to { transform: translateY(0); } }
+    </style>
+    <div id="toast-container"></div>
+    <div class="navbar">
+        <a href="/">歌单</a>
+        <a href="/admin">后台</a>
+        <a href="/admin/logout" style="color:#e74c3c;">退出登录</a>
+    </div>
+
+    <div class="container">
+        <h1>后台管理（歌单）</h1>
+        <p style="font-size:13px;color:#666;">使用配置文件中的 admin_token 访问；请求头也可传 <code>X-Admin-Token</code>。</p>
+
+        {% if message %}
+        <div class="message">{{ message }}</div>
+        {% endif %}
+
+        <div class="panel">
+            <h2>站点信息</h2>
+            <form method="post" action="/admin/action" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="settings">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                {% if token %}<input type="hidden" name="token" value="{{ token }}">{% endif %}
+
+                <label for="title">网页标题</label>
+                <input type="text" id="title" name="title" value="{{ settings.title }}" required>
+
+                <label for="singer_name">歌手名字</label>
+                <input type="text" id="singer_name" name="singer_name" value="{{ settings.singer_name }}" required>
+
+                <label for="singer_intro">歌手介绍</label>
+                <textarea id="singer_intro" name="singer_intro" rows="3">{{ settings.singer_intro }}</textarea>
+
+                <label for="live_url">直播间地址</label>
+                <input type="text" id="live_url" name="live_url" value="{{ settings.live_url }}" required>
+
+                <p class="tips">当前背景图：{{ settings.background_url }}</p>
+                <label>上传背景图（可选）</label>
+                <input type="file" name="background_file" accept="image/*">
+
+                <p class="tips">当前歌手头像：{{ settings.singer_url }}</p>
+                <label>上传歌手头像（可选）</label>
+                <input type="file" name="singer_file" accept="image/*">
+
+                <div class="actions">
+                    <button type="submit"><i class="fa fa-save"></i> 保存站点信息</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="panel">
+            <h2>歌曲列表（编辑/删除）</h2>
+            <div class="song-list">
+                <table id="songs">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>歌名</th>
+                            <th>歌手</th>
+                            <th>语言</th>
+                            <th>风格</th>
+                            <th>链接</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for song in songs %}
+                        <tr class="song-row" data-song-id="{{ song.id }}">
+                            <form method="post" action="/admin/action" class="song-form">
+                                <input type="hidden" name="action" value="song_update">
+                                <input type="hidden" name="song_id" value="{{ song.id }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                {% if token %}<input type="hidden" name="token" value="{{ token }}">{% endif %}
+                                <td>{{ song.id }}</td>
+                                <td><input class="small-input" type="text" name="song_name" value="{{ song.name }}" required></td>
+                                <td><input class="small-input" type="text" name="artist" value="{{ song.artist }}" required></td>
+                                <td><input class="small-input" type="text" name="language" value="{{ song.language }}"></td>
+                                <td><input class="small-input" type="text" name="genre" value="{{ song.genre }}"></td>
+                                <td><input class="small-input" type="text" name="url" value="{{ song.url }}"></td>
+                                <td style="white-space:nowrap;">
+                                    <button type="submit" style="margin-right:6px;"><i class="fa fa-save"></i></button>
+                            </form>
+                                    <form method="post" action="/admin/action" style="display:inline;" class="song-delete-form">
+                                        <input type="hidden" name="action" value="song_delete">
+                                        <input type="hidden" name="song_id" value="{{ song.id }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        {% if token %}<input type="hidden" name="token" value="{{ token }}">{% endif %}
+                                        <button type="submit" style="background:#e74c3c;"><i class="fa fa-trash"></i></button>
+                                    </form>
+                                </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <form method="post" action="/admin/action" class="song-new-form">
+                                <input type="hidden" name="action" value="song_new">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                {% if token %}<input type="hidden" name="token" value="{{ token }}">{% endif %}
+                                <td>+</td>
+                                <td><input class="small-input" type="text" name="song_name" placeholder="歌名" required></td>
+                                <td><input class="small-input" type="text" name="artist" placeholder="歌手" required></td>
+                                <td><input class="small-input" type="text" name="language" placeholder="语言"></td>
+                                <td><input class="small-input" type="text" name="genre" placeholder="风格"></td>
+                                <td><input class="small-input" type="text" name="url" placeholder="url 或 -"></td>
+                                <td style="white-space:nowrap;">
+                                    <button type="submit"><i class="fa fa-plus"></i></button>
+                                </td>
+                            </form>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>备份 / 恢复</h2>
+            <form method="post" action="/admin/action" class="backup-row" style="margin-bottom:10px;">
+                <input type="hidden" name="action" value="backup">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                {% if token %}<input type="hidden" name="token" value="{{ token }}">{% endif %}
+                <div>生成 <code>backup/songs_backup.json</code>（UTF-8）。<a class="info-link" href="#" onclick="toggleBackupHelp(); return false;">格式说明</a></div>
+                <div class="backup-actions">
+                    <a class="btn-secondary" href="/admin/download-backup{% if token %}?token={{ token }}{% endif %}">
+                        <i class="fa fa-download"></i> 下载备份
+                    </a>
+                    <button type="submit"><i class="fa fa-download"></i> 备份</button>
+                </div>
+            </form>
+            <form method="post" action="/admin/action" class="backup-row" enctype="multipart/form-data" onsubmit="return confirm('将用备份覆盖当前歌单，确认吗？');">
+                <input type="hidden" name="action" value="restore_backup">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                {% if token %}<input type="hidden" name="token" value="{{ token }}">{% endif %}
+                <div style="flex:1; min-width:240px;">上传备份（JSON 或 XLSX），或留空使用 <code>backup/songs_backup.json</code> 恢复，覆盖当前歌单。</div>
+                <div class="backup-actions">
+                    <label class="file-input">
+                        <span class="btn"><i class="fa fa-file"></i> <span id="file-label">选择文件</span></span>
+                        <input type="file" name="backup_file" accept=".json,.xlsx" id="backup-file-input">
+                    </label>
+                    <button type="submit" style="background:#e67e22;"><i class="fa fa-upload"></i> 恢复</button>
+                </div>
+            </form>
+            <div id="backup-help" style="display:none; font-size:13px; color:#555; margin-top:8px;">
+                <strong>JSON：</strong>为后台导出的原始格式。<br/>
+                <strong>XLSX：</strong>首行表头必须依次为：歌名 | 歌手 | 语言 | 风格 | url；第二行开始为数据，缺失可留空，url 为空时用 “-” 代替。
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>生成歌单长图</h2>
+            <form method="post" action="/admin/action" class="backup-row" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="generate_playlist_image">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                {% if token %}<input type="hidden" name="token" value="{{ token }}">{% endif %}
+                <div style="flex:1; min-width:260px;">上传完整背景图，填写 content_start / end_start，按当前歌曲名排序生成长图。<a class="info-link" href="#" onclick="toggleLongHelp(); return false;">格式说明</a></div>
+                <div class="backup-actions" style="flex-wrap:wrap; gap:8px;">
+                    <label class="file-input">
+                        <span class="btn"><i class="fa fa-file"></i> <span id="gen-file-label">选择背景</span></span>
+                        <input type="file" name="bg_image" accept="image/*" id="gen-bg-input" required>
+                    </label>
+                    <input type="number" name="content_start" placeholder="content_start" required style="padding:8px 10px;border:1px solid #ccc;border-radius:6px; width:130px;">
+                    <input type="number" name="end_start" placeholder="end_start" required style="padding:8px 10px;border:1px solid #ccc;border-radius:6px; width:130px;">
+                </div>
+                <div class="backup-actions" style="flex-wrap:wrap; gap:8px;">
+                    <input type="number" name="font_size" placeholder="字体大小(默认38)" style="padding:8px 10px;border:1px solid #ccc;border-radius:6px; width:170px;">
+                    <input type="number" name="line_height" placeholder="行高(默认内容高/80)" style="padding:8px 10px;border:1px solid #ccc;border-radius:6px; width:170px;">
+                    <input type="number" name="max_chars_per_line" placeholder="每行字符(默认35)" style="padding:8px 10px;border:1px solid #ccc;border-radius:6px; width:170px;">
+                    <input type="number" name="max_songs_per_line" placeholder="每行数量(默认6)" style="padding:8px 10px;border:1px solid #ccc;border-radius:6px; width:170px;">
+                </div>
+                <div class="backup-actions" style="flex-wrap:wrap; gap:8px;">
+                    <button type="submit" style="background:#6c7ae0;"><i class="fa fa-image"></i> 生成长图</button>
+                </div>
+            </form>
+            <p class="tips">使用当前数据库中的歌曲名（按现有排序规则）。提交后会直接下载生成的长图，同时也会保存到 <code>/static/uploads</code>。</p>
+            <div id="long-help" style="display:none; font-size:13px; color:#555; margin-top:8px;">
+                <strong>示例：</strong> 以下为<code>content_start</code> 和 <code>end_start</code> 的示例说明。<br/>
+                <img src="/static/sample_longimage.png" alt="长图示例" style="max-width:100%; border:1px solid #eee; border-radius:8px; margin-top:6px;">
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>生成歌单小图（分页）</h2>
+            <form method="post" action="/admin/action" class="backup-row" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="generate_playlist_pages">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                {% if token %}<input type="hidden" name="token" value="{{ token }}">{% endif %}
+                <div style="flex:1; min-width:260px;">上传背景图，设置文本区域左上/右下坐标（x1,y1,x2,y2），按当前歌曲名分页生成与背景同尺寸的小图。<a class="info-link" href="#" onclick="toggleSmallHelp(); return false;">格式说明</a></div>
+                <div class="backup-actions" style="flex-wrap:wrap; gap:8px;">
+                    <label class="file-input">
+                        <span class="btn"><i class="fa fa-file"></i> <span id="gen-small-file-label">选择背景</span></span>
+                        <input type="file" name="bg_image_small" accept="image/*" id="gen-small-bg-input" required>
+                    </label>
+                    <input type="number" name="rect_x1" placeholder="x1" required style="padding:8px 10px;border:1px solid #ccc;border-radius:6px; width:90px;">
+                    <input type="number" name="rect_y1" placeholder="y1" required style="padding:8px 10px;border:1px solid #ccc;border-radius:6px; width:90px;">
+                    <input type="number" name="rect_x2" placeholder="x2" required style="padding:8px 10px;border:1px solid #ccc;border-radius:6px; width:90px;">
+                    <input type="number" name="rect_y2" placeholder="y2" required style="padding:8px 10px;border:1px solid #ccc;border-radius:6px; width:90px;">
+                </div>
+                <div class="backup-actions" style="flex-wrap:wrap; gap:8px;">
+                    <input type="number" name="font_size" placeholder="字体大小(默认38)" style="padding:8px 10px;border:1px solid #ccc;border-radius:6px; width:170px;">
+                    <input type="number" name="line_height" placeholder="行高(默认80)" style="padding:8px 10px;border:1px solid #ccc;border-radius:6px; width:170px;">
+                    <input type="number" name="max_chars_per_line" placeholder="每行字符(默认35)" style="padding:8px 10px;border:1px solid #ccc;border-radius:6px; width:170px;">
+                    <input type="number" name="max_songs_per_line" placeholder="每行数量(默认6)" style="padding:8px 10px;border:1px solid #ccc;border-radius:6px; width:170px;">
+                </div>
+                <div class="backup-actions" style="flex-wrap:wrap; gap:8px;">
+                    <button type="submit" style="background:#6c7ae0;"><i class="fa fa-images"></i> 生成分页小图</button>
+                </div>
+            </form>
+            <p class="tips">使用当前数据库中的歌曲名（按现有排序规则）。提交后会直接下载包含所有小图的 ZIP，也会保存到 <code>/static/uploads</code>。</p>
+            <div id="small-help" style="display:none; font-size:13px; color:#555; margin-top:8px;">
+                <strong>示例：</strong> 以下为<code>(x1,y1)</code> 和 <code>(x2,y2)</code> 的示例说明。<br/>
+                <img src="/static/sample_sepimages.png" alt="小图示例" style="max-width:100%; border:1px solid #eee; border-radius:8px; margin-top:6px;">
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>安全</h2>
+            <form method="post" action="/admin/action" class="backup-box" data-ajax="true" data-token-form="true" data-confirm="确定修改 admin_token 吗？修改后需重新登录">
+                <input type="hidden" name="action" value="update_admin_token">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                {% if token %}<input type="hidden" name="token" value="{{ token }}">{% endif %}
+                <div style="flex:1; min-width:240px;">修改后台 admin_token。</div>
+                <input type="password" name="new_token" placeholder="新 admin_token" required style="padding:8px 10px;border:1px solid #ccc;border-radius:6px;" autocomplete="new-password">
+                <input type="password" name="confirm_token" placeholder="确认 admin_token" required style="padding:8px 10px;border:1px solid #ccc;border-radius:6px;" autocomplete="new-password">
+                <button type="submit" style="background:#e74c3c;"><i class="fa fa-key"></i> 更新</button>
+            </form>
+        </div>
+    </div>
+    <script>
+        const backupInput = document.getElementById('backup-file-input');
+        const fileLabel = document.getElementById('file-label');
+        if (backupInput && fileLabel) {
+            backupInput.addEventListener('change', (e) => {
+                const file = e.target.files && e.target.files[0];
+                fileLabel.textContent = file ? file.name : '选择文件';
+            });
+        }
+        const genInput = document.getElementById('gen-bg-input');
+        const genFileLabel = document.getElementById('gen-file-label');
+        if (genInput && genFileLabel) {
+            genInput.addEventListener('change', (e) => {
+                const file = e.target.files && e.target.files[0];
+                genFileLabel.textContent = file ? file.name : '选择背景';
+            });
+        }
+        const genSmallInput = document.getElementById('gen-small-bg-input');
+        const genSmallFileLabel = document.getElementById('gen-small-file-label');
+        if (genSmallInput && genSmallFileLabel) {
+            genSmallInput.addEventListener('change', (e) => {
+                const file = e.target.files && e.target.files[0];
+                genSmallFileLabel.textContent = file ? file.name : '选择背景';
+            });
+        }
+        function toggleBackupHelp() {
+            const help = document.getElementById('backup-help');
+            if (help) help.style.display = help.style.display === 'none' ? 'block' : 'none';
+        }
+        function toggleLongHelp() {
+            const help = document.getElementById('long-help');
+            if (help) help.style.display = help.style.display === 'none' ? 'block' : 'none';
+        }
+        function toggleSmallHelp() {
+            const help = document.getElementById('small-help');
+            if (help) help.style.display = help.style.display === 'none' ? 'block' : 'none';
+        }
+    </script>
+    <script>
+        const csrfToken = "{{ csrf_token|e }}";
+        const adminToken = "{{ token|e }}";
+        const toastContainer = document.getElementById('toast-container');
+        const messageBox = document.querySelector('.message');
+        function showToast(text, type = 'info') {
+            if (!text || !toastContainer) return;
+            const node = document.createElement('div');
+            node.className = `toast ${type}`;
+            node.textContent = text;
+            toastContainer.appendChild(node);
+            setTimeout(() => {
+                node.style.opacity = '0';
+                setTimeout(() => node.remove(), 180);
+            }, 2400);
+        }
+        function setMessage(text, type = 'info') {
+            if (messageBox) {
+                messageBox.textContent = text || '';
+                messageBox.style.display = text ? 'block' : 'none';
+            }
+            if (text) showToast(text, type);
+        }
+        if (messageBox && messageBox.textContent.trim()) {
+            showToast(messageBox.textContent.trim(), 'info');
+        }
+
+        function handleTokenUpdate(e) {
+            const form = e.target;
+            const newToken = form.querySelector('input[name="new_token"]')?.value || '';
+            const confirmToken = form.querySelector('input[name="confirm_token"]')?.value || '';
+            if (newToken !== confirmToken) {
+                alert('两次输入的 token 不一致');
+                e.preventDefault();
+                return false;
+            }
+            return confirm('确定修改 admin_token 吗？修改后需重新登录');
+        }
+
+        // Async song actions
+        function bindSongForms() {
+            document.querySelectorAll('.song-form').forEach(form => {
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const fd = new FormData(form);
+                    fd.append('action', 'song_update');
+                    try {
+                        const res = await fetch('/admin/action', {
+                            method: 'POST',
+                            headers: { 'Accept': 'application/json' },
+                            body: fd
+                        });
+                        const data = await res.json();
+                        if (data.ok) {
+                            setMessage('歌曲已更新','success');
+                        } else {
+                            setMessage(data.message || '更新失败','error');
+                        }
+                    } catch (err) {
+                        setMessage('更新失败','error');
+                    }
+                });
+            });
+
+            document.querySelectorAll('.song-delete-form').forEach(form => {
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const fd = new FormData(form);
+                    fd.append('action', 'song_delete');
+                    const row = form.closest('.song-row');
+                    try {
+                        const res = await fetch('/admin/action', {
+                            method: 'POST',
+                            headers: { 'Accept': 'application/json' },
+                            body: fd
+                        });
+                        const data = await res.json();
+                        if (data.ok) {
+                            if (row) row.remove();
+                            setMessage('歌曲已删除','success');
+                        } else {
+                            setMessage(data.message || '删除失败','error');
+                        }
+                    } catch (err) {
+                        setMessage('删除失败','error');
+                    }
+                });
+            });
+
+            const newForm = document.querySelector('.song-new-form');
+            if (newForm) {
+                newForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const fd = new FormData(newForm);
+                    fd.append('action', 'song_new');
+                    try {
+                        const res = await fetch('/admin/action', {
+                            method: 'POST',
+                            headers: { 'Accept': 'application/json' },
+                            body: fd
+                        });
+                        const data = await res.json();
+                        if (data.ok && data.song) {
+                            appendSongRow(data.song);
+                            newForm.reset();
+                            setMessage('歌曲已添加','success');
+                        } else {
+                            setMessage(data.message || '添加失败','error');
+                        }
+                    } catch (err) {
+                        setMessage('添加失败','error');
+                    }
+                });
+            }
+        }
+
+        function appendSongRow(song) {
+            const tbody = document.querySelector('table tbody');
+            if (!tbody) return;
+            const tr = document.createElement('tr');
+            tr.className = 'song-row';
+            tr.dataset.songId = song.id;
+            tr.innerHTML = `
+                <form method="post" action="/admin/action" class="song-form">
+                    <input type="hidden" name="action" value="song_update">
+                    ${csrfToken ? `<input type="hidden" name="csrf_token" value="${csrfToken}">` : ''}
+                    ${adminToken ? `<input type="hidden" name="token" value="${adminToken}">` : ''}
+                    <input type="hidden" name="song_id" value="${song.id}">
+                    <td>${song.id}</td>
+                    <td><input class="small-input" type="text" name="song_name" value="${song.name}" required></td>
+                    <td><input class="small-input" type="text" name="artist" value="${song.artist}" required></td>
+                    <td><input class="small-input" type="text" name="language" value="${song.language || ''}"></td>
+                    <td><input class="small-input" type="text" name="genre" value="${song.genre || ''}"></td>
+                    <td><input class="small-input" type="text" name="url" value="${song.url || '-'}"></td>
+                    <td style="white-space:nowrap;">
+                        <button type="submit" style="margin-right:6px;"><i class="fa fa-save"></i></button>
+                </form>
+                        <form method="post" action="/admin/action" style="display:inline;" class="song-delete-form">
+                            <input type="hidden" name="action" value="song_delete">
+                            ${csrfToken ? `<input type="hidden" name="csrf_token" value="${csrfToken}">` : ''}
+                            ${adminToken ? `<input type="hidden" name="token" value="${adminToken}">` : ''}
+                            <input type="hidden" name="song_id" value="${song.id}">
+                            <button type="submit" style="background:#e74c3c;"><i class="fa fa-trash"></i></button>
+                        </form>
+                    </td>
+            `;
+            // insert before tfoot
+            const tfoot = document.querySelector('table tfoot');
+            tbody.appendChild(tr);
+            // bind events for new row
+            tr.querySelectorAll('.song-form').forEach(f => {
+                f.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const fd = new FormData(f);
+                    fd.append('action', 'song_update');
+                    try {
+                        const res = await fetch('/admin/action', {
+                            method: 'POST',
+                            headers: { 'Accept': 'application/json' },
+                            body: fd
+                        });
+                        const data = await res.json();
+                        setMessage(data.ok ? '歌曲已更新' : (data.message || '更新失败'), data.ok ? 'success' : 'error');
+                    } catch { setMessage('更新失败','error'); }
+                });
+            });
+            tr.querySelectorAll('.song-delete-form').forEach(f => {
+                f.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const fd = new FormData(f);
+                    fd.append('action', 'song_delete');
+                    try {
+                        const res = await fetch('/admin/action', {
+                            method: 'POST',
+                            headers: { 'Accept': 'application/json' },
+                            body: fd
+                        });
+                        const data = await res.json();
+                        if (data.ok) tr.remove();
+                        setMessage(data.ok ? '歌曲已删除' : (data.message || '删除失败'), data.ok ? 'success' : 'error');
+                    } catch { setMessage('删除失败','error'); }
+                });
+            });
+        }
+
+        bindSongForms();
+    </script>
+</body>
+</html>

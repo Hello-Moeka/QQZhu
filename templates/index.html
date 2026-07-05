@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ settings.title }}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"> <!-- FontAwesome 图标 -->
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-image: linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.2)), url('{{ settings.background_url }}'); /* 背景加遮罩提升对比 */
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed; /* 背景图固定 */
+            background-repeat: no-repeat;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start; /* 内容从顶部开始 */
+            color: #333;
+        }
+        /* 导航栏样式 */
+        .navbar {
+            width: 100%;
+            background-color: rgba(255, 255, 255, 0.95); /* 更浅的背景 */
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            backdrop-filter: blur(8px);
+        }
+        .navbar a {
+            color: #888; /* 浅灰色文字 */
+            text-decoration: none;
+            font-size: 18px;
+            margin: 0 25px; /* 增加间距 */
+            padding: 10px 15px;
+            border-radius: 5px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .navbar a:hover {
+            background-color: rgba(108, 122, 224, 0.1); /* 浅蓝色背景 */
+            color: #6c7ae0; /* 浅蓝色文字 */
+        }
+        .intro {
+            background-color: rgba(255, 255, 255, 0.9); /* 歌手信息背景 */
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 1200px;
+            margin: 20px 0;
+            text-align: left;
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+        }
+        .intro img {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+        .intro .intro-text { flex: 1; }
+        .intro h2 {
+            font-size: 24px;
+            margin-top: 0;
+        }
+        .intro h2 a {
+            color: #6c7ae0; /* 浅蓝色链接 */
+            text-decoration: none;
+        }
+        .intro h2 a:hover {
+            text-decoration: underline;
+        }
+        .intro p {
+            font-size: 16px;
+            line-height: 1.6;
+            margin: 10px 0 0;
+        }
+        @media (max-width: 640px) {
+            .intro {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+            .intro .intro-text { width: 100%; }
+        }
+        .song-list {
+            background-color: rgba(255, 255, 255, 0.9); /* 歌曲列表背景 */
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 1200px;
+            margin-bottom: 20px;
+        }
+        .filter-bar {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .filter-bar input,
+        .filter-bar select {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            flex: 1;
+            min-width: 200px;
+            background-color: white;
+        }
+        .filter-bar input:focus,
+        .filter-bar select:focus {
+            outline: none;
+            border-color: #aaa;
+        }
+        .filter-bar button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #6c7ae0;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .filter-bar button:hover {
+            background-color: #5a68c7;
+        }
+        .category {
+            margin-bottom: 30px;
+        }
+        .category h3 {
+            font-size: 20px;
+            color: #6c7ae0; /* 浅蓝色标题 */
+            margin-bottom: 15px;
+        }
+        .song-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); /* 每行 4-6 个卡片 */
+            gap: 15px; /* 卡片之间的间距 */
+        }
+        .song-card {
+            background-color: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .song-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        .song-card h4 {
+            font-size: 18px;
+            margin: 0 0 10px;
+            color: #333;
+        }
+        .song-card p {
+            font-size: 14px;
+            margin: 5px 0;
+            color: #666;
+        }
+        .song-card a {
+            color: #6c7ae0; /* 浅蓝色链接 */
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .song-card a:hover {
+            text-decoration: underline;
+        }
+        /* 列表布局样式 */
+        .song-list-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .song-list-table th, .song-list-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .song-list-table th {
+            background-color: #6c7ae0; /* 浅蓝色表头 */
+            color: white;
+            font-size: 18px;
+        }
+        .song-list-table tr {
+            cursor: pointer; /* 鼠标悬停时显示手型 */
+        }
+        .song-list-table tr:hover {
+            background-color: rgba(241, 241, 241, 0.7); /* 行悬停效果 */
+        }
+        .song-list-table a {
+            color: #6c7ae0; /* 浅蓝色链接 */
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .song-list-table a:hover {
+            text-decoration: underline;
+        }
+        /* 隐藏卡片布局 */
+        .song-list.hide-cards .song-grid {
+            display: none;
+        }
+        /* 隐藏列表布局 */
+        .song-list.hide-table .song-list-table {
+            display: none;
+        }
+        /* 隐藏分类标题 */
+        .song-list.hide-cards .category {
+            display: none;
+        }
+        /* 备案号样式 */
+        .footer {
+            width: 100%;
+            margin-top: auto; /* 固定在页面底部 */
+            padding: 20px 0;
+            text-align: center;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: #fff;
+            font-size: 14px;
+        }
+        .footer a {
+            color: #fff;
+            text-decoration: none;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        @media (max-width: 900px) {
+            .navbar a { font-size: 16px; margin: 0 12px; padding: 8px 10px; }
+        }
+        @media (max-width: 768px) {
+            body { background-attachment: scroll; }
+            .navbar { flex-wrap: wrap; padding: 12px; gap: 8px; }
+            .navbar a { font-size: 15px; margin: 4px 8px; }
+            .intro {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+                padding: 16px;
+            }
+            .intro img { width: 120px; height: 120px; }
+            .song-list { padding: 14px; width: 94%; }
+            .filter-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+            .filter-bar input,
+            .filter-bar select,
+            .filter-bar button { width: 100%; min-width: 0; font-size: 15px; }
+            .song-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+            .song-card { padding: 12px; }
+            .song-list-table thead { display: none; }
+            .song-list-table { display: block; }
+            .song-list-table tbody {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            .song-list-table tr {
+                display: grid;
+                grid-template-columns: 1fr;
+                padding: 12px;
+                background: rgba(255, 255, 255, 0.95);
+                border-radius: 10px;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+                border: 1px solid #eee;
+            }
+            .song-list-table td {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 6px 0;
+                border-bottom: none;
+                font-size: 14px;
+                gap: 10px;
+            }
+            .song-list-table td::before {
+                content: attr(data-label);
+                color: #666;
+                font-weight: 600;
+                font-size: 13px;
+            }
+            .footer {
+                font-size: 12px;
+                padding: 15px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <div class="navbar">
+        <a href="{{ settings.live_url }}">直播间</a>
+        <a href="/">歌单</a>
+        <a href="/admin">后台</a>
+    </div>
+
+    <!-- 歌手介绍 -->
+    <div class="intro">
+        <div class="intro-media">
+            <img src="{{ settings.singer_url }}" alt="歌手图片">
+        </div>
+        <div class="intro-text">
+            <h2><a href="{{ settings.live_url }}" target="_blank">{{ settings.singer_name }}</a></h2>
+            <p>{{ settings.singer_intro.replace('\n','<br/>') | safe }}</p>
+        </div>
+    </div>
+
+    <!-- 歌曲列表 -->
+    <div class="song-list hide-table">
+        <div class="filter-bar">
+            <input type="text" id="filter-name" placeholder="搜索歌名">
+            <input type="text" id="filter-artist" placeholder="搜索歌手">
+            <select id="filter-language">
+                <option value="">所有语言</option>
+                {% for lang in languages %}
+                <option value="{{ lang }}">{{ lang }}</option>
+                {% endfor %}
+            </select>
+            <select id="filter-genre">
+                <option value="">所有风格</option>
+                {% for genre in genres %}
+                <option value="{{ genre }}">{{ genre }}</option>
+                {% endfor %}
+            </select>
+            <button id="toggle-layout">切换为列表布局</button>
+        </div>
+
+        <!-- 卡片布局 -->
+        {% for lang in languages %}
+        <div class="category">
+            <h3>{{ lang }} 歌曲</h3>
+            <div class="song-grid">
+                {% for song in songs %}
+                {% if song.language == lang %}
+                <div class="song-card" data-song-name="{{ song.name }}">
+                    <h4>{{ song.name }}</h4>
+                    <p>歌手：{{ song.artist }}</p>
+                    <p>风格：{{ song.genre }}</p>
+                    {% if song.url != '-' %}
+                    <a href="{{ song.url }}" target="_blank"><i class="fas fa-play"></i> 播放</a>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- 列表布局 -->
+        <table class="song-list-table">
+            <thead>
+                <tr>
+                    <th>歌名</th>
+                    <th>歌手</th>
+                    <th>语言</th>
+                    <th>风格</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for song in songs %}
+                <tr data-song-name="{{ song.name }}">
+                    <td data-label="歌名">{{ song.name }}</td>
+                    <td data-label="歌手">{{ song.artist }}</td>
+                    <td data-label="语言">{{ song.language }}</td>
+                    <td data-label="风格">{{ song.genre }}</td>
+                    <td data-label="操作">
+                        {% if song.url != '-' %}
+                        <a href="{{ song.url }}" target="_blank"><i class="fas fa-play"></i> 播放</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <!-- 👇 这是新增的备案号代码，直接粘贴在这里 -->
+    <div class="footer">
+        <p>
+            <a href="https://beian.miit.gov.cn/" target="_blank">苏ICP备2026009705号-1</a> 
+            ｜ 苏公网安备32021402004572号
+        </p>
+    </div>
+    <script>
+        // 复制歌名
+        function copySongName(event) {
+            const songName = event.currentTarget.getAttribute('data-song-name'); // 获取歌名
+
+            // 检查是否支持 navigator.clipboard
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(songName)
+                    .then(() => {
+                        alert('歌名已复制，快去点歌吧~');
+                    })
+                    .catch(() => {
+                        alert('复制失败，请手动复制。');
+                    });
+            } else {
+                // 使用备用方法（document.execCommand）
+                const tempInput = document.createElement('input');
+                tempInput.value = songName;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempInput);
+                alert('歌名已复制，快去点歌吧~');
+            }
+        }
+
+        // 绑定点击事件
+        document.querySelectorAll('.song-card, .song-list-table tr').forEach(element => {
+            element.addEventListener('click', copySongName);
+        });
+
+        // 过滤歌曲
+        function filterSongs() {
+            const nameFilter = document.getElementById('filter-name').value.toLowerCase();
+            const artistFilter = document.getElementById('filter-artist').value.toLowerCase();
+            const languageFilter = document.getElementById('filter-language').value.toLowerCase();
+            const genreFilter = document.getElementById('filter-genre').value.toLowerCase();
+
+            // 过滤卡片布局
+            const cards = document.querySelectorAll('.song-card');
+            cards.forEach(card => {
+                const name = card.querySelector('h4').textContent.toLowerCase();
+                const artist = card.querySelector('p:nth-of-type(1)').textContent.toLowerCase();
+                const genre = card.querySelector('p:nth-of-type(2)').textContent.toLowerCase();
+                const language = card.closest('.category').querySelector('h3').textContent.replace(' 歌曲', '').toLowerCase();
+
+                if (name.includes(nameFilter) &&
+                    artist.includes(artistFilter) &&
+                    (languageFilter === '' || language === languageFilter) &&
+                    (genreFilter === '' || genre.includes(genreFilter))) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+
+            // 过滤列表布局
+            const rows = document.querySelectorAll('.song-list-table tr');
+            rows.forEach(row => {
+                const name = row.cells[0].textContent.toLowerCase();
+                const artist = row.cells[1].textContent.toLowerCase();
+                const language = row.cells[2].textContent.toLowerCase();
+                const genre = row.cells[3].textContent.toLowerCase();
+
+                if (name.includes(nameFilter) &&
+                    artist.includes(artistFilter) &&
+                    (languageFilter === '' || language === languageFilter) &&
+                    (genreFilter === '' || genre === genreFilter)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        // 绑定过滤事件
+        document.getElementById('filter-name').addEventListener('input', filterSongs);
+        document.getElementById('filter-artist').addEventListener('input', filterSongs);
+        document.getElementById('filter-language').addEventListener('change', filterSongs);
+        document.getElementById('filter-genre').addEventListener('change', filterSongs);
+
+        // 切换布局
+        document.getElementById('toggle-layout').addEventListener('click', () => {
+            const songList = document.querySelector('.song-list');
+            const toggleButton = document.getElementById('toggle-layout');
+
+            if (songList.classList.contains('hide-cards')) {
+                // 切换到卡片布局
+                songList.classList.remove('hide-cards');
+                songList.classList.add('hide-table');
+                toggleButton.textContent = '切换为列表布局';
+            } else {
+                // 切换到列表布局
+                songList.classList.remove('hide-table');
+                songList.classList.add('hide-cards');
+                toggleButton.textContent = '切换为卡片布局';
+            }
+        });
+    </script>
+</body>
+</html>
