@@ -322,6 +322,56 @@ class TenantManager:
         )
         await self.master_conn.commit()
 
+    async def rename_tenant(self, old_slug: str, new_slug: str):
+        """重命名租户 slug（同步更新 DB 文件、上传目录、site_settings 中的路径）。"""
+        if old_slug == new_slug:
+            return
+        # 检查新 slug 是否已存在
+        existing = await self.get_tenant(new_slug)
+        if existing:
+            raise ValueError(f"租户 '{new_slug}' 已存在")
+
+        # 1. 更新主控库
+        await self.master_conn.execute(
+            "UPDATE tenants SET slug = ? WHERE slug = ?",
+            (new_slug, old_slug)
+        )
+        await self.master_conn.commit()
+
+        # 2. 关闭旧连接
+        if old_slug in self._tenant_dbs:
+            await self._tenant_dbs[old_slug].close()
+            del self._tenant_dbs[old_slug]
+
+        # 3. 重命名数据库文件
+        old_db = f"instance/{old_slug}.db"
+        new_db = f"instance/{new_slug}.db"
+        if os.path.exists(old_db):
+            os.rename(old_db, new_db)
+
+        # 4. 更新 site_settings 中的上传路径（把 /uploads/{old_slug}/ 替换为 /uploads/{new_slug}/）
+        conn = await aiosqlite.connect(new_db)
+        conn.row_factory = aiosqlite.Row
+        cursor = await conn.execute("SELECT key, value FROM site_settings")
+        rows = await cursor.fetchall()
+        await cursor.close()
+        for row in rows:
+            key, value = row["key"], row["value"]
+            if value and f"/uploads/{old_slug}/" in value:
+                new_value = value.replace(f"/uploads/{old_slug}/", f"/uploads/{new_slug}/")
+                await conn.execute(
+                    "UPDATE site_settings SET value = ? WHERE key = ?",
+                    (new_value, key)
+                )
+        await conn.commit()
+        await conn.close()
+
+        # 5. 重命名上传目录
+        old_uploads = f"static/uploads/{old_slug}"
+        new_uploads = f"static/uploads/{new_slug}"
+        if os.path.isdir(old_uploads):
+            os.rename(old_uploads, new_uploads)
+
     async def get_tenant_db(self, slug: str) -> aiosqlite.Connection:
         """获取或创建租户数据库连接（懒加载）。"""
         if slug not in self._tenant_dbs:
@@ -1395,6 +1445,16 @@ async def super_admin_action(request):
             await tenant_mgr.toggle_tenant(slug, is_active)
             status = "启用" if is_active else "禁用"
             message = f"租户 '{slug}' 已{status}"
+
+        elif action == "rename_tenant":
+            old_slug = form.get("old_slug", "").strip()
+            new_slug = form.get("new_slug", "").strip()
+            if not old_slug or not new_slug:
+                raise ValueError("新旧标识不能为空")
+            if not new_slug.isalnum():
+                raise ValueError("新标识只能包含字母和数字")
+            await tenant_mgr.rename_tenant(old_slug, new_slug)
+            message = f"租户 '{old_slug}' 已重命名为 '{new_slug}'"
 
         elif action == "setup_super_token":
             new_token = form.get("new_token", "").strip()

@@ -222,6 +222,10 @@
                                     {{ '禁用' if t.is_active else '启用' }}
                                 </button>
                             </form>
+                            <button type="button" class="btn btn-primary"
+                                    onclick="renameTenant('{{ t.slug }}', '{{ t.name }}')">
+                                <i class="fa fa-edit"></i> 改名
+                            </button>
                             <form method="post" action="/super-admin/action" style="display:inline"
                                   onsubmit="return confirm('确定要删除租户 \'{{ t.name }}\' 吗？此操作不可恢复，所有数据将被永久删除。')">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -265,5 +269,27 @@
             </form>
         </div>
     </div>
+    <script>
+        function renameTenant(oldSlug, name) {
+            var newSlug = prompt('将 "' + name + '" 的域名标识从 "' + oldSlug + '" 改为：\n\n（仅限字母和数字，改后需更新 DNS 解析）', oldSlug);
+            if (!newSlug || newSlug === oldSlug) return;
+            if (!/^[a-zA-Z0-9]+$/.test(newSlug)) {
+                alert('标识只能包含字母和数字');
+                return;
+            }
+            if (!confirm('确认将 "' + oldSlug + '" 重命名为 "' + newSlug + '"?\n\n此操作会同步更新数据库、文件和上传目录。')) return;
+
+            var form = document.createElement('form');
+            form.method = 'post';
+            form.action = '/super-admin/action';
+            form.style.display = 'none';
+            form.innerHTML = '<input type="hidden" name="csrf_token" value="{{ csrf_token }}">' +
+                             '<input type="hidden" name="action" value="rename_tenant">' +
+                             '<input type="hidden" name="old_slug" value="' + oldSlug + '">' +
+                             '<input type="hidden" name="new_slug" value="' + newSlug + '">';
+            document.body.appendChild(form);
+            form.submit();
+        }
+    </script>
 </body>
 </html>
