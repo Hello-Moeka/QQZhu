@@ -19,6 +19,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ---------------------------------------------------------------------------
+# 默认设置
+# ---------------------------------------------------------------------------
 DEFAULT_SETTINGS = {
     "title": "歌单",
     "live_url": "https://",
@@ -28,6 +31,9 @@ DEFAULT_SETTINGS = {
     "singer_intro": "这里填写歌手介绍~",
 }
 
+# ---------------------------------------------------------------------------
+# 配置
+# ---------------------------------------------------------------------------
 class CaseSensitiveConfigParser(configparser.ConfigParser):
     def optionxform(self, optionstr):
         return optionstr
@@ -39,8 +45,9 @@ class Config:
     def __init__(self, filename="config.ini"):
         self.config = CaseSensitiveConfigParser()
         self.config.read(filename)
-        # cache env overrides
         self.env_admin_token = os.environ.get("QQZHU_ADMIN_TOKEN")
+        self.env_super_admin_token = os.environ.get("QQZHU_SUPER_ADMIN_TOKEN")
+        self.single_tenant = os.environ.get("QQZHU_SINGLE_TENANT", "").lower() in ("1", "true", "yes")
 
     def _get(self, section, key, default):
         if self.config.has_section(section) and key in self.config[section]:
@@ -59,7 +66,13 @@ class Config:
     def admin_token(self):
         return self.env_admin_token or self._get("server", "admin_token", "")
 
+    def super_admin_token(self):
+        return self.env_super_admin_token or self._get("super_admin", "token", "")
 
+
+# ---------------------------------------------------------------------------
+# 登录限流
+# ---------------------------------------------------------------------------
 LOGIN_ATTEMPTS = {}
 LOGIN_LIMIT = 5
 LOGIN_WINDOW = 300  # seconds
@@ -105,14 +118,15 @@ def update_env_var(key: str, value: str, env_path: str = ".env"):
         lines.append(f"{key}={value}\n")
     with open(env_path, "w", encoding="utf-8") as f:
         f.writelines(lines)
-    # Also update process env for current runtime
     os.environ[key] = value
 
 
+# ---------------------------------------------------------------------------
+# 中间件
+# ---------------------------------------------------------------------------
 @web.middleware
 async def csrf_middleware(request, handler):
-    # Only enforce for admin-related endpoints
-    is_admin_path = request.path.startswith("/admin")
+    is_admin_path = request.path.startswith("/admin") or request.path.startswith("/super-admin")
     if is_admin_path:
         token = request.cookies.get("csrf_token") or secrets.token_urlsafe(32)
         request["csrf_token"] = token
@@ -143,7 +157,6 @@ async def security_headers_middleware(request, handler):
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-    # 轻量 CSP：允许自身与 https 资源，行内样式/脚本被现有页面使用，图片放宽到 https/data
     response.headers.setdefault(
         "Content-Security-Policy",
         "default-src 'self' https: data:; "
@@ -157,21 +170,232 @@ async def security_headers_middleware(request, handler):
     return response
 
 
+@web.middleware
+async def tenant_middleware(request, handler):
+    """多租户中间件：从 Host 头解析租户，挂载对应 DB 连接。
+
+    逻辑:
+    - *.example.com 形式 → 提取第一段为 slug
+    - 无子域名 或 localhost → super admin
+    - 单租户模式 → 直接使用 default 租户
+    """
+    config = request.app["config"]
+    tenant_mgr = request.app["tenant_manager"]
+
+    # 单租户兼容模式
+    if config.single_tenant:
+        request["tenant_slug"] = "default"
+        request["tenant_info"] = None
+        request["is_super_admin"] = False
+        request["db_conn"] = request.app["db_conn"]
+        return await handler(request)
+
+    host = request.host.lower().split(":")[0]  # 去掉端口号
+
+    # localhost / 127.0.0.1 / 纯 IP → super admin
+    if host in ("localhost", "127.0.0.1") or host.count(".") <= 1:
+        request["tenant_slug"] = None
+        request["tenant_info"] = None
+        request["is_super_admin"] = True
+        request["db_conn"] = None
+        return await handler(request)
+
+    # 尝试提取子域名
+    parts = host.split(".")
+    if len(parts) >= 3:
+        slug = parts[0]
+        if slug in ("www", ""):
+            slug = None
+    else:
+        slug = None
+
+    if slug is None:
+        # 主域名 → 超级管理员
+        request["tenant_slug"] = None
+        request["tenant_info"] = None
+        request["is_super_admin"] = True
+        request["db_conn"] = None
+        return await handler(request)
+
+    # 多租户模式：查找租户
+    tenant_info = await tenant_mgr.get_tenant(slug)
+    if tenant_info is None:
+        raise web.HTTPNotFound(text=f"租户 '{slug}' 不存在")
+
+    if not tenant_info.get("is_active", 1):
+        raise web.HTTPForbidden(text=f"租户 '{slug}' 已禁用")
+
+    request["tenant_slug"] = slug
+    request["tenant_info"] = tenant_info
+    request["is_super_admin"] = False
+    request["db_conn"] = await tenant_mgr.get_tenant_db(slug)
+    return await handler(request)
+
+
+# ---------------------------------------------------------------------------
+# 数据库连接管理
+# ---------------------------------------------------------------------------
+class TenantManager:
+    """管理主控库 (tenants.db) 和所有租户数据库连接。"""
+
+    def __init__(self):
+        self.master_conn = None
+        self._tenant_dbs = {}       # {slug: aiosqlite.Connection}
+
+    async def init_master(self):
+        """初始化主控数据库，确保 tenants 表存在。"""
+        os.makedirs("instance", exist_ok=True)
+        self.master_conn = await aiosqlite.connect("instance/tenants.db")
+        self.master_conn.row_factory = aiosqlite.Row
+        await self.master_conn.execute("""
+            CREATE TABLE IF NOT EXISTS tenants (
+                slug TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                admin_token TEXT DEFAULT '',
+                is_active INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        await self.master_conn.commit()
+
+    async def get_tenant(self, slug: str) -> dict | None:
+        """查询租户信息。"""
+        cursor = await self.master_conn.execute(
+            "SELECT slug, name, admin_token, is_active, created_at FROM tenants WHERE slug = ?",
+            (slug,)
+        )
+        row = await cursor.fetchone()
+        await cursor.close()
+        return dict(row) if row else None
+
+    async def list_tenants(self) -> list[dict]:
+        """列出所有租户。"""
+        cursor = await self.master_conn.execute(
+            "SELECT slug, name, admin_token, is_active, created_at FROM tenants ORDER BY created_at DESC"
+        )
+        rows = await cursor.fetchall()
+        await cursor.close()
+        return [dict(r) for r in rows]
+
+    async def create_tenant(self, slug: str, name: str, admin_token: str = "") -> dict:
+        """创建租户：写入主控库 + 初始化租户数据库。"""
+        # 写入主控库
+        await self.master_conn.execute(
+            "INSERT INTO tenants (slug, name, admin_token, is_active) VALUES (?, ?, ?, 1)",
+            (slug, name, admin_token)
+        )
+        await self.master_conn.commit()
+
+        # 初始化租户数据库
+        await self._init_tenant_db(slug, name)
+
+        return await self.get_tenant(slug)
+
+    async def delete_tenant(self, slug: str):
+        """删除租户：从主控库移除 + 关闭连接 + 删除数据库文件。"""
+        await self.master_conn.execute("DELETE FROM tenants WHERE slug = ?", (slug,))
+        await self.master_conn.commit()
+
+        # 关闭并移除连接
+        if slug in self._tenant_dbs:
+            await self._tenant_dbs[slug].close()
+            del self._tenant_dbs[slug]
+
+        # 删除数据库文件
+        db_path = f"instance/{slug}.db"
+        if os.path.exists(db_path):
+            os.remove(db_path)
+
+    async def toggle_tenant(self, slug: str, is_active: bool):
+        """启用/禁用租户。"""
+        await self.master_conn.execute(
+            "UPDATE tenants SET is_active = ? WHERE slug = ?",
+            (1 if is_active else 0, slug)
+        )
+        await self.master_conn.commit()
+
+    async def update_tenant_token(self, slug: str, new_token: str):
+        """更新租户的 admin_token。"""
+        await self.master_conn.execute(
+            "UPDATE tenants SET admin_token = ? WHERE slug = ?",
+            (new_token, slug)
+        )
+        await self.master_conn.commit()
+
+    async def get_tenant_db(self, slug: str) -> aiosqlite.Connection:
+        """获取或创建租户数据库连接（懒加载）。"""
+        if slug not in self._tenant_dbs:
+            db_path = f"instance/{slug}.db"
+            conn = await aiosqlite.connect(db_path)
+            conn.row_factory = aiosqlite.Row
+            await self._ensure_tables(conn)
+            self._tenant_dbs[slug] = conn
+        return self._tenant_dbs[slug]
+
+    async def _init_tenant_db(self, slug: str, name: str):
+        """创建新租户的数据库并写入默认设置。"""
+        db_path = f"instance/{slug}.db"
+        os.makedirs("instance", exist_ok=True)
+        conn = await aiosqlite.connect(db_path)
+        conn.row_factory = aiosqlite.Row
+        await self._ensure_tables(conn)
+
+        # 写入该租户的默认站点设置
+        defaults = DEFAULT_SETTINGS.copy()
+        defaults["title"] = f"{name}的歌单"
+        defaults["singer_name"] = name
+        for key, value in defaults.items():
+            await conn.execute(
+                "INSERT INTO site_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (key, value),
+            )
+        await conn.commit()
+        await conn.close()
+
+    async def _ensure_tables(self, conn):
+        """创建租户数据库表。"""
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS songs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                artist TEXT NOT NULL,
+                language TEXT NOT NULL,
+                genre TEXT NOT NULL,
+                url TEXT NOT NULL
+            )
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS site_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
+        await conn.commit()
+
+    async def preload_tenants(self):
+        """预加载所有活跃租户的数据库连接。"""
+        tenants = await self.list_tenants()
+        for t in tenants:
+            if t.get("is_active", 1):
+                await self.get_tenant_db(t["slug"])
+
+    async def close_all(self):
+        """关闭所有数据库连接。"""
+        for conn in self._tenant_dbs.values():
+            await conn.close()
+        self._tenant_dbs.clear()
+        if self.master_conn:
+            await self.master_conn.close()
+
+
 async def create_db_connection(db_path):
-    # Ensure the database directory exists before connecting
+    """创建独立的数据库连接（用于单租户模式）。"""
     db_dir = os.path.dirname(db_path)
     if db_dir:
         os.makedirs(db_dir, exist_ok=True)
     conn = await aiosqlite.connect(db_path)
     conn.row_factory = aiosqlite.Row
-    await ensure_tables(conn)
-    return conn
-
-
-async def ensure_tables(conn):
-    """Create required tables if they do not exist."""
-    await conn.execute(
-        """
+    await conn.execute("""
         CREATE TABLE IF NOT EXISTS songs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -180,43 +404,50 @@ async def ensure_tables(conn):
             genre TEXT NOT NULL,
             url TEXT NOT NULL
         )
-        """
-    )
-    await ensure_settings_table(conn)
-    await conn.commit()
-
-
-async def ensure_settings_table(conn):
-    await conn.execute(
-        """
+    """)
+    await conn.execute("""
         CREATE TABLE IF NOT EXISTS site_settings (
             key TEXT PRIMARY KEY,
             value TEXT
         )
-        """
-    )
+    """)
     await conn.commit()
+    return conn
 
 
-def ensure_upload_dir():
-    os.makedirs("static/uploads", exist_ok=True)
+# ---------------------------------------------------------------------------
+# 文件上传辅助
+# ---------------------------------------------------------------------------
+def ensure_upload_dir(slug=None):
+    """确保上传目录存在。多租户时按 slug 隔离。"""
+    if slug:
+        path = f"static/uploads/{slug}"
+    else:
+        path = "static/uploads"
+    os.makedirs(path, exist_ok=True)
+    return path
 
 
-def save_file_field(file_field, prefix):
-    """Save aiohttp FileField to static/uploads and return web path."""
-    ensure_upload_dir()
+def save_file_field(file_field, prefix, slug=None):
+    """Save aiohttp FileField 到上传目录，返回 web 路径。"""
     filename = file_field.filename
     if not filename:
         return None
     ext = os.path.splitext(filename)[1]
     safe_name = f"{prefix}_{int(time.time())}{ext}"
-    path_fs = os.path.join("static", "uploads", safe_name)
+    upload_dir = ensure_upload_dir(slug)
+    path_fs = os.path.join(upload_dir, safe_name)
     with open(path_fs, "wb") as f:
         content = file_field.file.read()
         f.write(content)
+    if slug:
+        return f"/static/uploads/{slug}/{safe_name}"
     return f"/static/uploads/{safe_name}"
 
 
+# ---------------------------------------------------------------------------
+# 字体
+# ---------------------------------------------------------------------------
 def pick_font(font_path=None, size=38):
     """Pick a font that exists on the system."""
     env_font = os.environ.get("QQZHU_FONT_PATH")
@@ -225,27 +456,16 @@ def pick_font(font_path=None, size=38):
         candidates.append(font_path)
     if env_font:
         candidates.append(env_font)
-    # Prefer repo-local font
     candidates.append(os.path.join("static", "simsun.ttc"))
-    # Common Noto paths (Debian/Ubuntu font package)
-    candidates.extend(
-        [
-            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/truetype/noto/NotoSansSC-Regular.otf",
-            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        ]
-    )
-    # Legacy fallbacks
-    candidates.extend(
-        [
-            "msyhl.ttc",
-            "SourceHanSansSC-Light.otf",
-            "msyh.ttc",
-            "simsun.ttc",
-            "STHeiti Light.ttc",
-        ]
-    )
-
+    candidates.extend([
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/noto/NotoSansSC-Regular.otf",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    ])
+    candidates.extend([
+        "msyhl.ttc", "SourceHanSansSC-Light.otf", "msyh.ttc",
+        "simsun.ttc", "STHeiti Light.ttc",
+    ])
     for path in candidates:
         if not path or not os.path.exists(path):
             continue
@@ -258,6 +478,9 @@ def pick_font(font_path=None, size=38):
     return font
 
 
+# ---------------------------------------------------------------------------
+# 歌单图片生成
+# ---------------------------------------------------------------------------
 def wrap_song_names(names, max_chars_per_line=35, max_songs_per_line=6):
     lines = []
     current = []
@@ -300,25 +523,18 @@ def measure_text(draw_obj, text, font):
         return bbox[2] - bbox[0], bbox[3] - bbox[1]
     if hasattr(draw_obj, "textsize"):
         return draw_obj.textsize(text, font=font)
-    # Fallback to font.getsize
     return font.getsize(text)
 
 
 def generate_playlist_image_from_bg(
-    bg_bytes,
-    content_start,
-    end_start,
-    names,
-    font_path=None,
-    font_size=38,
-    max_chars_per_line=35,
-    max_songs_per_line=6,
-    line_height=None,
-    output_dir="static/uploads",
+    bg_bytes, content_start, end_start, names,
+    font_path=None, font_size=38,
+    max_chars_per_line=35, max_songs_per_line=6,
+    line_height=None, output_dir="static/uploads",
 ):
     if not names:
         raise ValueError("歌曲列表为空")
-    ensure_upload_dir()
+    os.makedirs(output_dir, exist_ok=True)
     img = Image.open(io.BytesIO(bg_bytes))
     width, height = img.size
     if not (0 <= content_start < end_start <= height):
@@ -331,11 +547,7 @@ def generate_playlist_image_from_bg(
     bg_color = content.getpixel((min(10, content.width - 1), min(10, content.height - 1)))
     text_color = (30, 30, 30) if sum(bg_color) > 382 else (240, 240, 240)
 
-    lines = wrap_song_names(
-        names,
-        max_chars_per_line=max_chars_per_line,
-        max_songs_per_line=max_songs_per_line,
-    )
+    lines = wrap_song_names(names, max_chars_per_line=max_chars_per_line, max_songs_per_line=max_songs_per_line)
     resolved_line_height = max(line_height or content.height, 80)
     total_height = head.height + len(lines) * resolved_line_height + tail.height
     canvas = combine_background_img(head, content, tail, total_height)
@@ -344,8 +556,7 @@ def generate_playlist_image_from_bg(
     draw = ImageDraw.Draw(canvas)
     shadow_color = (
         (bg_color[0] - 30, bg_color[1] - 30, bg_color[2] - 30)
-        if sum(bg_color) > 382
-        else (0, 0, 0)
+        if sum(bg_color) > 382 else (0, 0, 0)
     )
 
     y = head.height
@@ -361,23 +572,19 @@ def generate_playlist_image_from_bg(
     filename = f"playlist_{ts}.png"
     path_fs = os.path.join(output_dir, filename)
     canvas.save(path_fs, quality=95)
-    return f"/static/uploads/{filename}"
+    web_path = f"/{output_dir.replace(os.sep, '/')}/{filename}"
+    return web_path
 
 
 def generate_playlist_pages_from_bg(
-    bg_bytes,
-    rect,
-    names,
-    font_path=None,
-    font_size=38,
-    max_chars_per_line=35,
-    max_songs_per_line=6,
-    line_height=80,
-    output_dir="static/uploads",
+    bg_bytes, rect, names,
+    font_path=None, font_size=38,
+    max_chars_per_line=35, max_songs_per_line=6,
+    line_height=80, output_dir="static/uploads",
 ):
     if not names:
         raise ValueError("歌曲列表为空")
-    ensure_upload_dir()
+    os.makedirs(output_dir, exist_ok=True)
     img = Image.open(io.BytesIO(bg_bytes)).convert("RGB")
     width, height = img.size
     x1, y1, x2, y2 = rect
@@ -394,8 +601,7 @@ def generate_playlist_pages_from_bg(
     text_color = (30, 30, 30) if sum(bg_color) > 382 else (240, 240, 240)
     shadow_color = (
         (max(bg_color[0] - 30, 0), max(bg_color[1] - 30, 0), max(bg_color[2] - 30, 0))
-        if sum(bg_color) > 382
-        else (0, 0, 0)
+        if sum(bg_color) > 382 else (0, 0, 0)
     )
     font = pick_font(font_path, font_size)
 
@@ -424,19 +630,22 @@ def generate_playlist_pages_from_bg(
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for fpath in saved_files:
             zf.write(fpath, arcname=os.path.basename(fpath))
+    web_prefix = f"/{output_dir.replace(os.sep, '/')}/"
     return {
-        "zip_path": f"/static/uploads/{zip_name}",
-        "files": [f"/static/uploads/{os.path.basename(p)}" for p in saved_files],
+        "zip_path": f"{web_prefix}{zip_name}",
+        "files": [f"{web_prefix}{os.path.basename(p)}" for p in saved_files],
     }
 
 
+# ---------------------------------------------------------------------------
+# 辅助
+# ---------------------------------------------------------------------------
 def wants_json(request):
     accept = request.headers.get("Accept", "")
     return "application/json" in accept or request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
 
 async def fetch_songs(conn):
-    """获取歌曲列表，按 id 升序。"""
     cursor = await conn.execute(
         "SELECT id, name, artist, language, genre, url FROM songs ORDER BY id ASC"
     )
@@ -446,7 +655,6 @@ async def fetch_songs(conn):
 
 
 async def fetch_songs_sorted(conn):
-    """获取歌曲列表，按原先规则排序（中文优先、短优先、拼音/字母）。"""
     songs = await fetch_songs(conn)
 
     def sort_key(song):
@@ -478,7 +686,6 @@ async def fetch_unique_genres(conn):
 
 
 async def get_settings(conn):
-    await ensure_settings_table(conn)
     cursor = await conn.execute("SELECT key, value FROM site_settings")
     rows = await cursor.fetchall()
     await cursor.close()
@@ -489,7 +696,6 @@ async def get_settings(conn):
 
 
 async def update_settings(conn, settings: dict):
-    await ensure_settings_table(conn)
     for key, value in settings.items():
         await conn.execute(
             "INSERT INTO site_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -511,11 +717,7 @@ async def add_song(conn, name, artist, language, genre, url):
 
 async def update_song(conn, song_id, name, artist, language, genre, url):
     await conn.execute(
-        """
-        UPDATE songs
-        SET name = ?, artist = ?, language = ?, genre = ?, url = ?
-        WHERE id = ?
-        """,
+        "UPDATE songs SET name = ?, artist = ?, language = ?, genre = ?, url = ? WHERE id = ?",
         (name, artist, language, genre, url, song_id),
     )
     await conn.commit()
@@ -548,16 +750,12 @@ def parse_backup_json(text: str):
 
 
 async def restore_songs_from_data(conn, songs):
-    # 清空并恢复
     await conn.execute("DELETE FROM songs")
     for s in songs:
         await add_song(
             conn,
-            s.get("name", ""),
-            s.get("artist", ""),
-            s.get("language", ""),
-            s.get("genre", ""),
-            s.get("url", "-"),
+            s.get("name", ""), s.get("artist", ""),
+            s.get("language", ""), s.get("genre", ""), s.get("url", "-"),
         )
     await conn.commit()
     return len(songs)
@@ -586,24 +784,29 @@ def parse_backup_xlsx(data: bytes):
         name, artist, language, genre, url = ["" if v is None else str(v) for v in vals[:5]]
         if not name and not artist:
             continue
-        songs.append(
-            {
-                "name": name,
-                "artist": artist,
-                "language": language,
-                "genre": genre,
-                "url": url or "-",
-            }
-        )
+        songs.append({"name": name, "artist": artist, "language": language, "genre": genre, "url": url or "-"})
     return songs
 
 
+# ---------------------------------------------------------------------------
+# 鉴权
+# ---------------------------------------------------------------------------
 def require_admin(request, form=None):
-    """Check admin token via header/query/form/cookie; redirect to login if missing."""
-    token_cfg = request.app["config"].admin_token()
+    """校验管理员 token。多租户模式下检查租户的 admin_token；单租户模式下检查全局 token。"""
+    config = request.app["config"]
+    tenant_info = request.get("tenant_info")
+
+    if tenant_info is not None:
+        # 多租户模式：使用租户自己的 admin_token
+        token_cfg = tenant_info.get("admin_token", "")
+    else:
+        # 单租户模式
+        token_cfg = config.admin_token()
+
     if not token_cfg:
         next_url = quote(str(request.rel_url))
         raise web.HTTPFound(location=f"/admin/setup?next={next_url}")
+
     provided = (
         request.headers.get("X-Admin-Token")
         or request.query.get("token")
@@ -616,15 +819,37 @@ def require_admin(request, form=None):
     raise web.HTTPFound(location=f"/admin/login?next={next_url}")
 
 
+def require_super_admin(request, form=None):
+    """校验超级管理员 token。"""
+    config = request.app["config"]
+    token_cfg = config.super_admin_token()
+    if not token_cfg:
+        # 未设置超级管理员 token，允许无认证访问（首次设置）
+        return True
+
+    provided = (
+        request.headers.get("X-Super-Admin-Token")
+        or request.query.get("token")
+        or (form.get("token") if form else None)
+        or request.cookies.get("super_admin_token")
+    )
+    if provided == token_cfg:
+        return True
+    next_url = quote(str(request.rel_url))
+    raise web.HTTPFound(location=f"/super-admin/login?next={next_url}")
+
+
+# ---------------------------------------------------------------------------
+# 租户端 - 前台
+# ---------------------------------------------------------------------------
 async def index(request):
-    conn = request.app["db_conn"]
+    conn = request["db_conn"]
     songs = await fetch_songs_sorted(conn)
     languages = await fetch_unique_languages(conn)
     genres = await fetch_unique_genres(conn)
     settings = await get_settings(conn)
     return aiohttp_jinja2.render_template(
-        "index.html",
-        request,
+        "index.html", request,
         {"songs": songs, "languages": languages, "genres": genres, "settings": settings},
     )
 
@@ -643,17 +868,37 @@ async def proxy_image(request):
             raise web.HTTPNotFound(text="Image not found")
 
 
+# ---------------------------------------------------------------------------
+# 租户端 - 后台认证
+# ---------------------------------------------------------------------------
 async def admin_login_get(request):
-    if not request.app["config"].admin_token():
+    config = request.app["config"]
+    tenant_info = request.get("tenant_info")
+    if tenant_info is not None:
+        token_cfg = tenant_info.get("admin_token", "")
+    else:
+        token_cfg = config.admin_token()
+
+    if not token_cfg:
         next_url = quote(str(request.rel_url))
         raise web.HTTPFound(location=f"/admin/setup?next={next_url}")
+
+    # 获取租户背景图设置
+    background_url = "/static/background.jpg"
+    if request.get("db_conn"):
+        try:
+            settings = await get_settings(request["db_conn"])
+            background_url = settings.get("background_url", background_url)
+        except Exception:
+            pass
+
     return aiohttp_jinja2.render_template(
-        "admin_login.html",
-        request,
+        "admin_login.html", request,
         {
             "next": request.query.get("next", "/admin"),
             "message": request.query.get("message", ""),
             "csrf_token": request.get("csrf_token", ""),
+            "background_url": background_url,
         },
     )
 
@@ -661,28 +906,48 @@ async def admin_login_get(request):
 async def admin_login_post(request):
     ip = (request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or request.remote or "unknown")
     remaining, wait = _login_attempts_info(ip)
+
+    # 获取租户背景图设置
+    background_url = "/static/background.jpg"
+    if request.get("db_conn"):
+        try:
+            settings = await get_settings(request["db_conn"])
+            background_url = settings.get("background_url", background_url)
+        except Exception:
+            pass
+
     if remaining == 0:
         return aiohttp_jinja2.render_template(
-            "admin_login.html",
-            request,
+            "admin_login.html", request,
             {
                 "next": request.query.get("next", "/admin"),
                 "message": f"尝试过多，请 {wait} 秒后再试",
                 "csrf_token": request.get("csrf_token", ""),
+                "background_url": background_url,
             },
         )
-    if not request.app["config"].admin_token():
+
+    config = request.app["config"]
+    tenant_info = request.get("tenant_info")
+    if tenant_info is not None:
+        token_cfg = tenant_info.get("admin_token", "")
+    else:
+        token_cfg = config.admin_token()
+
+    if not token_cfg:
         next_url = quote(str(request.rel_url))
         raise web.HTTPFound(location=f"/admin/setup?next={next_url}")
+
     form = await request.post()
-    token_cfg = request.app["config"].admin_token()
     provided = form.get("token", "")
     next_url = form.get("next") or "/admin"
+
     if token_cfg and provided == token_cfg:
         resp = web.HTTPFound(location=next_url)
         resp.set_cookie("admin_token", provided, httponly=True, samesite="Lax")
         _reset_login_failure(ip)
         return resp
+
     _add_login_failure(ip)
     remaining_after, wait_after = _login_attempts_info(ip)
     message_text = "Token 错误或未设置"
@@ -691,9 +956,8 @@ async def admin_login_post(request):
     else:
         message_text += f"；请 {wait_after} 秒后再试"
     return aiohttp_jinja2.render_template(
-        "admin_login.html",
-        request,
-        {"next": next_url, "message": message_text, "csrf_token": request.get("csrf_token", "")},
+        "admin_login.html", request,
+        {"next": next_url, "message": message_text, "csrf_token": request.get("csrf_token", ""), "background_url": background_url},
     )
 
 
@@ -704,12 +968,18 @@ async def admin_logout(request):
 
 
 async def admin_setup_get(request):
-    """First-time token setup when no admin_token is configured."""
-    if request.app["config"].admin_token():
+    """首次设置后台 token（仅当未设置时访问）。"""
+    config = request.app["config"]
+    tenant_info = request.get("tenant_info")
+    if tenant_info is not None:
+        token_cfg = tenant_info.get("admin_token", "")
+    else:
+        token_cfg = config.admin_token()
+
+    if token_cfg:
         raise web.HTTPFound(location="/admin/login")
     return aiohttp_jinja2.render_template(
-        "admin_setup.html",
-        request,
+        "admin_setup.html", request,
         {
             "next": request.query.get("next", "/admin"),
             "message": request.query.get("message", ""),
@@ -719,39 +989,58 @@ async def admin_setup_get(request):
 
 
 async def admin_setup_post(request):
-    if request.app["config"].admin_token():
+    config = request.app["config"]
+    tenant_info = request.get("tenant_info")
+
+    if tenant_info is not None:
+        token_cfg = tenant_info.get("admin_token", "")
+    else:
+        token_cfg = config.admin_token()
+
+    if token_cfg:
         raise web.HTTPFound(location="/admin/login")
+
     form = await request.post()
     new_token = form.get("new_token", "").strip()
     confirm_token = form.get("confirm_token", "").strip()
     next_url = form.get("next") or "/admin"
+
     if not new_token:
         return aiohttp_jinja2.render_template(
-            "admin_setup.html",
-            request,
+            "admin_setup.html", request,
             {"next": next_url, "message": "Token 不能为空", "csrf_token": request.get("csrf_token", "")},
         )
     if new_token != confirm_token:
         return aiohttp_jinja2.render_template(
-            "admin_setup.html",
-            request,
+            "admin_setup.html", request,
             {"next": next_url, "message": "两次输入的 Token 不一致", "csrf_token": request.get("csrf_token", "")},
         )
-    update_env_var("QQZHU_ADMIN_TOKEN", new_token)
-    request.app["config"].env_admin_token = new_token
+
+    if tenant_info is not None:
+        # 多租户模式：更新 tenants 表
+        slug = request["tenant_slug"]
+        await request.app["tenant_manager"].update_tenant_token(slug, new_token)
+        tenant_info["admin_token"] = new_token
+    else:
+        # 单租户模式：写入 .env
+        update_env_var("QQZHU_ADMIN_TOKEN", new_token)
+        config.env_admin_token = new_token
+
     resp = web.HTTPFound(location=next_url)
     resp.set_cookie("admin_token", new_token, httponly=True, samesite="Lax")
     return resp
 
 
+# ---------------------------------------------------------------------------
+# 租户端 - 后台管理
+# ---------------------------------------------------------------------------
 async def admin_page(request):
     _ = require_admin(request)
-    conn = request.app["db_conn"]
+    conn = request["db_conn"]
     songs = await fetch_songs(conn)
     settings = await get_settings(conn)
     return aiohttp_jinja2.render_template(
-        "admin.html",
-        request,
+        "admin.html", request,
         {
             "songs": songs,
             "settings": settings,
@@ -764,11 +1053,16 @@ async def admin_page(request):
 
 
 async def admin_action(request):
-    conn = request.app["db_conn"]
+    conn = request["db_conn"]
+    slug = request.get("tenant_slug")
     form = await request.post()
     require_admin(request, form)
     action = form.get("action")
     message = ""
+
+    # 按租户隔离的上传目录
+    upload_dir = ensure_upload_dir(slug)
+
     try:
         if action == "song_new":
             name = form.get("song_name", "").strip()
@@ -782,6 +1076,7 @@ async def admin_action(request):
                 return web.json_response({"ok": True, "action": "song_new", "song": {
                     "id": new_id, "name": name, "artist": artist, "language": language, "genre": genre, "url": url
                 }})
+
         elif action == "song_update":
             song_id = int(form.get("song_id", 0))
             name = form.get("song_name", "").strip()
@@ -793,16 +1088,21 @@ async def admin_action(request):
             message = "歌曲已更新"
             if wants_json(request):
                 return web.json_response({"ok": True, "action": "song_update", "song_id": song_id})
+
         elif action == "song_delete":
             song_id = int(form.get("song_id", 0))
             await delete_song(conn, song_id)
             message = "歌曲已删除"
             if wants_json(request):
                 return web.json_response({"ok": True, "action": "song_delete", "song_id": song_id})
+
         elif action == "backup":
-            dest = os.path.join("backup", "songs_backup.json")
+            backup_dir = f"backup/{slug}" if slug else "backup"
+            os.makedirs(backup_dir, exist_ok=True)
+            dest = os.path.join(backup_dir, "songs_backup.json")
             saved = await backup_songs(conn, dest)
             message = f"备份已生成: {saved}"
+
         elif action == "restore_backup":
             file_field = form.get("backup_file")
             try:
@@ -821,7 +1121,8 @@ async def admin_action(request):
                     if wants_json(request):
                         return web.json_response({"ok": True, "action": "restore_backup", "count": count})
                 else:
-                    src = os.path.join("backup", "songs_backup.json")
+                    backup_dir = f"backup/{slug}" if slug else "backup"
+                    src = os.path.join(backup_dir, "songs_backup.json")
                     if not os.path.exists(src):
                         raise FileNotFoundError(f"{src} 不存在")
                     with open(src, "r", encoding="utf-8") as f:
@@ -833,6 +1134,7 @@ async def admin_action(request):
                         return web.json_response({"ok": True, "action": "restore_backup", "count": count})
             except Exception as exc:
                 message = f"恢复失败: {exc}"
+
         elif action == "settings":
             current_settings = await get_settings(conn)
             bg_file = form.get("background_file")
@@ -846,15 +1148,16 @@ async def admin_action(request):
                 "singer_url": current_settings.get("singer_url", DEFAULT_SETTINGS["singer_url"]),
             }
             if hasattr(bg_file, "file") and bg_file.filename:
-                saved = save_file_field(bg_file, "bg")
+                saved = save_file_field(bg_file, "bg", slug)
                 if saved:
                     new_settings["background_url"] = saved
             if hasattr(singer_file, "file") and singer_file.filename:
-                saved = save_file_field(singer_file, "singer")
+                saved = save_file_field(singer_file, "singer", slug)
                 if saved:
                     new_settings["singer_url"] = saved
             await update_settings(conn, new_settings)
             message = "站点信息已更新"
+
         elif action == "update_admin_token":
             new_token = form.get("new_token", "").strip()
             confirm_token = form.get("confirm_token", "").strip()
@@ -862,11 +1165,19 @@ async def admin_action(request):
                 raise ValueError("新 token 不能为空")
             if new_token != confirm_token:
                 raise ValueError("两次输入的 token 不一致")
-            update_env_var("QQZHU_ADMIN_TOKEN", new_token)
-            request.app["config"].env_admin_token = new_token
+
+            tenant_info = request.get("tenant_info")
+            if tenant_info is not None:
+                await request.app["tenant_manager"].update_tenant_token(slug, new_token)
+                tenant_info["admin_token"] = new_token
+            else:
+                update_env_var("QQZHU_ADMIN_TOKEN", new_token)
+                request.app["config"].env_admin_token = new_token
+
             message = "admin_token 已更新，请重新登录"
             if wants_json(request):
                 return web.json_response({"ok": True, "action": "update_admin_token", "message": message})
+
         elif action == "generate_playlist_image":
             bg_field = form.get("bg_image")
             if not (bg_field and hasattr(bg_field, "file") and bg_field.filename):
@@ -885,19 +1196,13 @@ async def admin_action(request):
             max_chars_per_line = int(form.get("max_chars_per_line", 35) or 35)
             max_songs_per_line = int(form.get("max_songs_per_line", 6) or 6)
             generated_path = generate_playlist_image_from_bg(
-                bg_field.file.read(),
-                content_start,
-                end_start,
-                names,
-                font_path=font_path,
-                font_size=font_size,
-                max_chars_per_line=max_chars_per_line,
-                max_songs_per_line=max_songs_per_line,
-                line_height=line_height_val,
+                bg_field.file.read(), content_start, end_start, names,
+                font_path=font_path, font_size=font_size,
+                max_chars_per_line=max_chars_per_line, max_songs_per_line=max_songs_per_line,
+                line_height=line_height_val, output_dir=upload_dir,
             )
             if wants_json(request):
                 return web.json_response({"ok": True, "action": "generate_playlist_image", "path": generated_path})
-            # For normal form submit, stream the generated file as download
             fs_path = generated_path.lstrip("/\\")
             fs_path = fs_path if os.path.isabs(fs_path) else os.path.join(os.getcwd(), fs_path)
             if not os.path.exists(fs_path):
@@ -905,6 +1210,7 @@ async def admin_action(request):
             filename = os.path.basename(fs_path)
             headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
             return web.FileResponse(path=fs_path, headers=headers)
+
         elif action == "generate_playlist_pages":
             bg_field = form.get("bg_image_small")
             if not (bg_field and hasattr(bg_field, "file") and bg_field.filename):
@@ -924,14 +1230,10 @@ async def admin_action(request):
             names = [s["name"] for s in songs_sorted]
             font_path = form.get("font_path", "").strip() or None
             result = generate_playlist_pages_from_bg(
-                bg_field.file.read(),
-                (x1, y1, x2, y2),
-                names,
-                font_path=font_path,
-                font_size=font_size,
-                max_chars_per_line=max_chars_per_line,
-                max_songs_per_line=max_songs_per_line,
-                line_height=line_height,
+                bg_field.file.read(), (x1, y1, x2, y2), names,
+                font_path=font_path, font_size=font_size,
+                max_chars_per_line=max_chars_per_line, max_songs_per_line=max_songs_per_line,
+                line_height=line_height, output_dir=upload_dir,
             )
             zip_path = result["zip_path"]
             if wants_json(request):
@@ -943,6 +1245,7 @@ async def admin_action(request):
             filename = os.path.basename(fs_path)
             headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
             return web.FileResponse(path=fs_path, headers=headers)
+
         else:
             message = "未知操作"
     except Exception as exc:
@@ -957,32 +1260,208 @@ async def admin_action(request):
 
 
 async def admin_download_backup(request):
-    """Generate and send latest backup file for download."""
     _ = require_admin(request)
-    conn = request.app["db_conn"]
-    dest = os.path.join("backup", "songs_backup.json")
+    slug = request.get("tenant_slug")
+    conn = request["db_conn"]
+    backup_dir = f"backup/{slug}" if slug else "backup"
+    os.makedirs(backup_dir, exist_ok=True)
+    dest = os.path.join(backup_dir, "songs_backup.json")
     saved = await backup_songs(conn, dest)
     headers = {"Content-Disposition": 'attachment; filename="songs_backup.json"'}
     return web.FileResponse(path=saved, headers=headers)
 
 
+# ---------------------------------------------------------------------------
+# 超级管理员
+# ---------------------------------------------------------------------------
+async def super_admin_login_get(request):
+    """超级管理员登录页。"""
+    config = request.app["config"]
+    if not config.super_admin_token():
+        # 未设置超级管理员 token，直接跳转管理页（首次）
+        raise web.HTTPFound(location="/super-admin")
+    return aiohttp_jinja2.render_template(
+        "admin_login.html", request,
+        {
+            "next": request.query.get("next", "/super-admin"),
+            "message": request.query.get("message", ""),
+            "csrf_token": request.get("csrf_token", ""),
+            "is_super_admin": True,
+            "form_action": "/super-admin/login",
+            "background_url": "/static/background.jpg",
+        },
+    )
+
+
+async def super_admin_login_post(request):
+    """超级管理员登录处理。"""
+    ip = (request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or request.remote or "unknown")
+    remaining, wait = _login_attempts_info(ip)
+    if remaining == 0:
+        return aiohttp_jinja2.render_template(
+            "admin_login.html", request,
+            {
+                "next": request.query.get("next", "/super-admin"),
+                "message": f"尝试过多，请 {wait} 秒后再试",
+                "csrf_token": request.get("csrf_token", ""),
+                "is_super_admin": True,
+                "form_action": "/super-admin/login",
+                "background_url": "/static/background.jpg",
+            },
+        )
+
+    config = request.app["config"]
+    token_cfg = config.super_admin_token()
+    if not token_cfg:
+        raise web.HTTPFound(location="/super-admin")
+
+    form = await request.post()
+    provided = form.get("token", "")
+    next_url = form.get("next") or "/super-admin"
+
+    if provided == token_cfg:
+        resp = web.HTTPFound(location=next_url)
+        resp.set_cookie("super_admin_token", provided, httponly=True, samesite="Lax")
+        _reset_login_failure(ip)
+        return resp
+
+    _add_login_failure(ip)
+    remaining_after, wait_after = _login_attempts_info(ip)
+    message_text = "Token 错误"
+    if remaining_after > 0:
+        message_text += f"；还可再试 {remaining_after} 次"
+    else:
+        message_text += f"；请 {wait_after} 秒后再试"
+    return aiohttp_jinja2.render_template(
+        "admin_login.html", request,
+        {"next": next_url, "message": message_text, "csrf_token": request.get("csrf_token", ""),
+         "is_super_admin": True, "form_action": "/super-admin/login", "background_url": "/static/background.jpg"},
+    )
+
+
+async def super_admin_logout(request):
+    resp = web.HTTPFound(location="/super-admin/login")
+    resp.del_cookie("super_admin_token")
+    return resp
+
+
+async def super_admin_page(request):
+    """超级管理员管理页 - 列出所有租户。"""
+    _ = require_super_admin(request)
+    tenant_mgr = request.app["tenant_manager"]
+    tenants = await tenant_mgr.list_tenants()
+    return aiohttp_jinja2.render_template(
+        "super_admin.html", request,
+        {
+            "tenants": tenants,
+            "message": request.query.get("message", ""),
+            "csrf_token": request.get("csrf_token", ""),
+        },
+    )
+
+
+async def super_admin_action(request):
+    """超级管理员操作：创建/删除/启禁租户。"""
+    require_super_admin(request)
+    tenant_mgr = request.app["tenant_manager"]
+    form = await request.post()
+    action = form.get("action")
+    message = ""
+
+    try:
+        if action == "create_tenant":
+            slug = form.get("slug", "").strip().lower()
+            name = form.get("name", "").strip()
+            if not slug or not name:
+                raise ValueError("租户标识和名称不能为空")
+            if not slug.isalnum():
+                raise ValueError("租户标识只能包含字母和数字")
+            existing = await tenant_mgr.get_tenant(slug)
+            if existing:
+                raise ValueError(f"租户 '{slug}' 已存在")
+            await tenant_mgr.create_tenant(slug, name)
+            message = f"租户 '{name}' ({slug}) 创建成功"
+
+        elif action == "delete_tenant":
+            slug = form.get("slug", "").strip()
+            if not slug:
+                raise ValueError("请指定要删除的租户")
+            await tenant_mgr.delete_tenant(slug)
+            message = f"租户 '{slug}' 已删除"
+
+        elif action == "toggle_tenant":
+            slug = form.get("slug", "").strip()
+            is_active = form.get("is_active", "1") == "1"
+            await tenant_mgr.toggle_tenant(slug, is_active)
+            status = "启用" if is_active else "禁用"
+            message = f"租户 '{slug}' 已{status}"
+
+        elif action == "setup_super_token":
+            new_token = form.get("new_token", "").strip()
+            confirm_token = form.get("confirm_token", "").strip()
+            if not new_token:
+                raise ValueError("Token 不能为空")
+            if new_token != confirm_token:
+                raise ValueError("两次输入的 Token 不一致")
+            update_env_var("QQZHU_SUPER_ADMIN_TOKEN", new_token)
+            request.app["config"].env_super_admin_token = new_token
+            message = "超级管理员 Token 已设置"
+
+        else:
+            message = "未知操作"
+    except Exception as exc:
+        message = f"操作失败: {exc}"
+
+    params = [f"message={quote(message)}"]
+    return web.HTTPFound(location="/super-admin?" + "&".join(params))
+
+
+# ---------------------------------------------------------------------------
+# 初始化应用
+# ---------------------------------------------------------------------------
 async def init_app():
     app = web.Application(
         client_max_size=10 * 1024 * 1024,
-        middlewares=[csrf_middleware, security_headers_middleware],
+        middlewares=[tenant_middleware, csrf_middleware, security_headers_middleware],
     )
     aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader("templates"))
 
+    config = Config("config.ini")
+    app["config"] = config
+
+    # 初始化租户管理器
+    tenant_mgr = TenantManager()
+    await tenant_mgr.init_master()
+    app["tenant_manager"] = tenant_mgr
+
+    if config.single_tenant:
+        # 单租户兼容模式
+        db_conn = await create_db_connection(config.db_path())
+        app["db_conn"] = db_conn
+        async def close_db(app):
+            await app["db_conn"].close()
+        app.on_cleanup.append(close_db)
+    else:
+        # 多租户模式：预加载所有活跃租户
+        await tenant_mgr.preload_tenants()
+        # 确保 default 租户存在（兼容旧数据）
+        default = await tenant_mgr.get_tenant("default")
+        if not default:
+            await tenant_mgr.create_tenant("default", "默认主播")
+
+        async def close_all_tenant_dbs(app):
+            await app["tenant_manager"].close_all()
+        app.on_cleanup.append(close_all_tenant_dbs)
+
+    # 静态文件 & 公共路由
     app.router.add_static("/static/", path="static", name="static")
     app.router.add_get("/proxy-image", proxy_image)
     app.router.add_get("/healthz", lambda request: web.Response(text="ok"))
 
-    config = Config("config.ini")
-    db_conn = await create_db_connection(config.db_path())
-    app["db_conn"] = db_conn
-    app["config"] = config
-
+    # 租户前台
     app.router.add_get("/", index)
+
+    # 租户后台
     app.router.add_get("/admin/login", admin_login_get)
     app.router.add_post("/admin/login", admin_login_post)
     app.router.add_get("/admin/logout", admin_logout)
@@ -992,10 +1471,13 @@ async def init_app():
     app.router.add_post("/admin/action", admin_action)
     app.router.add_get("/admin/download-backup", admin_download_backup)
 
-    async def close_db(app):
-        await app["db_conn"].close()
+    # 超级管理员
+    app.router.add_get("/super-admin/login", super_admin_login_get)
+    app.router.add_post("/super-admin/login", super_admin_login_post)
+    app.router.add_get("/super-admin/logout", super_admin_logout)
+    app.router.add_get("/super-admin", super_admin_page)
+    app.router.add_post("/super-admin/action", super_admin_action)
 
-    app.on_cleanup.append(close_db)
     return app
 
 

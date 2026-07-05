@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>超级管理员 - 租户管理</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f0f2f5;
+            color: #333;
+        }
+        .navbar {
+            width: 100%;
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #fff;
+            box-sizing: border-box;
+        }
+        .navbar h1 {
+            margin: 0;
+            font-size: 20px;
+        }
+        .navbar a {
+            color: #ecf0f1;
+            text-decoration: none;
+            margin-left: 20px;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+        .navbar a:hover { color: #fff; }
+        .container {
+            max-width: 900px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        .section {
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        .section h2 {
+            margin: 0 0 16px;
+            font-size: 18px;
+            color: #2c3e50;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 10px;
+        }
+        .message {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .message.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        th, td {
+            text-align: left;
+            padding: 12px 8px;
+            border-bottom: 1px solid #eee;
+        }
+        th { color: #888; font-weight: 600; font-size: 12px; text-transform: uppercase; }
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-badge.active { background: #e8f5e9; color: #2e7d32; }
+        .status-badge.inactive { background: #ffebee; color: #c62828; }
+        .btn {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.85; }
+        .btn-danger { background: #e74c3c; color: #fff; }
+        .btn-primary { background: #3498db; color: #fff; }
+        .btn-success { background: #27ae60; color: #fff; }
+        .btn-warning { background: #f39c12; color: #fff; }
+        .form-row {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .form-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+        }
+        .form-group input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        .help-text {
+            font-size: 12px;
+            color: #999;
+            margin-top: 8px;
+        }
+        code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <h1><i class="fa fa-crown"></i> QQZhu 超级管理员</h1>
+        <div>
+            <a href="/super-admin/logout"><i class="fa fa-sign-out-alt"></i> 登出</a>
+        </div>
+    </div>
+
+    <div class="container">
+        {% if message %}
+        <div class="message {% if '失败' in message %}error{% endif %}">{{ message }}</div>
+        {% endif %}
+
+        <!-- 创建租户 -->
+        <div class="section">
+            <h2><i class="fa fa-plus-circle"></i> 创建租户</h2>
+            <form method="post" action="/super-admin/action">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="action" value="create_tenant">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>租户标识 (子域名)</label>
+                        <input type="text" name="slug" required placeholder="例如: alice" pattern="[a-zA-Z0-9]+" 
+                               title="仅支持字母和数字">
+                    </div>
+                    <div class="form-group">
+                        <label>显示名称</label>
+                        <input type="text" name="name" required placeholder="例如: Alice直播间">
+                    </div>
+                    <div class="form-group">
+                        <label>&nbsp;</label>
+                        <button type="submit" class="btn btn-primary"><i class="fa fa-check"></i> 创建</button>
+                    </div>
+                </div>
+                <p class="help-text">
+                    创建后将自动生成子域名访问地址: <code>slug.example.com</code>。<br>
+                    租户首次访问后台时会引导设置独立的 admin token。
+                </p>
+            </form>
+        </div>
+
+        <!-- 租户列表 -->
+        <div class="section">
+            <h2><i class="fa fa-list"></i> 租户列表</h2>
+            {% if tenants %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>标识</th>
+                        <th>名称</th>
+                        <th>状态</th>
+                        <th>Token 状态</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in tenants %}
+                    <tr>
+                        <td><code>{{ t.slug }}</code></td>
+                        <td>{{ t.name }}</td>
+                        <td>
+                            <span class="status-badge {{ 'active' if t.is_active else 'inactive' }}">
+                                {{ '启用' if t.is_active else '已禁用' }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if t.admin_token %}
+                            <span class="status-badge active">已设置</span>
+                            {% else %}
+                            <span class="status-badge inactive">未设置</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ t.created_at }}</td>
+                        <td>
+                            <form method="post" action="/super-admin/action" style="display:inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="action" value="toggle_tenant">
+                                <input type="hidden" name="slug" value="{{ t.slug }}">
+                                <input type="hidden" name="is_active" value="{{ '0' if t.is_active else '1' }}">
+                                <button type="submit" class="btn {{ 'btn-warning' if t.is_active else 'btn-success' }}">
+                                    {{ '禁用' if t.is_active else '启用' }}
+                                </button>
+                            </form>
+                            <form method="post" action="/super-admin/action" style="display:inline"
+                                  onsubmit="return confirm('确定要删除租户 \'{{ t.name }}\' 吗？此操作不可恢复，所有数据将被永久删除。')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="action" value="delete_tenant">
+                                <input type="hidden" name="slug" value="{{ t.slug }}">
+                                <button type="submit" class="btn btn-danger"><i class="fa fa-trash"></i> 删除</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="color: #999; text-align: center; padding: 24px;">暂无租户，请先创建一个。</p>
+            {% endif %}
+        </div>
+
+        <!-- 超级管理员 Token 设置 -->
+        <div class="section">
+            <h2><i class="fa fa-shield-alt"></i> 超级管理员 Token 设置</h2>
+            <form method="post" action="/super-admin/action">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="action" value="setup_super_token">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>新 Token</label>
+                        <input type="password" name="new_token" required autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <label>确认 Token</label>
+                        <input type="password" name="confirm_token" required autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <label>&nbsp;</label>
+                        <button type="submit" class="btn btn-primary"><i class="fa fa-save"></i> 保存</button>
+                    </div>
+                </div>
+                <p class="help-text">
+                    设置后通过环境变量 <code>QQZHU_SUPER_ADMIN_TOKEN</code> 或此页面管理。
+                </p>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

@@ -9,6 +9,7 @@ services:
     environment:
       QQZHU_PORT: 8080
       QQZHU_DB_PATH: /app/instance/qqzhu.db
+      QQZHU_SUPER_ADMIN_TOKEN: ${QQZHU_SUPER_ADMIN_TOKEN:-}
     volumes:
       - ./instance:/app/instance
       - ./static/uploads:/app/static/uploads
