@@ -13,7 +13,8 @@ import io
 import math
 import zipfile
 from PIL import Image, ImageDraw, ImageFont
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
+import ipaddress
 from pypinyin import pinyin, Style
 from dotenv import load_dotenv
 
@@ -76,9 +77,24 @@ class Config:
 LOGIN_ATTEMPTS = {}
 LOGIN_LIMIT = 5
 LOGIN_WINDOW = 300  # seconds
+LOGIN_GC_INTERVAL = 600  # 清理周期（秒）
+_LOGIN_LAST_GC = 0.0
+
+
+def _gc_login_attempts():
+    """定期清理过期 IP 条目，避免 LOGIN_ATTEMPTS 无限增长。"""
+    global _LOGIN_LAST_GC
+    now = time.time()
+    if now - _LOGIN_LAST_GC < LOGIN_GC_INTERVAL:
+        return
+    _LOGIN_LAST_GC = now
+    expired = [ip for ip, ts in LOGIN_ATTEMPTS.items() if not ts or now - ts[-1] >= LOGIN_WINDOW]
+    for ip in expired:
+        LOGIN_ATTEMPTS.pop(ip, None)
 
 
 def _login_attempts_info(ip: str):
+    _gc_login_attempts()
     now = time.time()
     attempts = LOGIN_ATTEMPTS.get(ip, [])
     attempts = [t for t in attempts if now - t < LOGIN_WINDOW]
@@ -91,6 +107,7 @@ def _login_attempts_info(ip: str):
 
 
 def _add_login_failure(ip: str):
+    _gc_login_attempts()
     now = time.time()
     attempts = LOGIN_ATTEMPTS.get(ip, [])
     attempts = [t for t in attempts if now - t < LOGIN_WINDOW]
@@ -170,13 +187,30 @@ async def security_headers_middleware(request, handler):
     return response
 
 
+def _resolve_host(request) -> str:
+    """解析真实请求域名。
+
+    优先级：X-Forwarded-Host（反代会保留原始 Host）> request.host。
+    取第一个（链式反代时取最左），去掉端口号，转小写。
+    """
+    fwd = request.headers.get("X-Forwarded-Host", "")
+    if fwd:
+        host = fwd.split(",")[0].strip().lower()
+    else:
+        host = request.host.lower()
+    return host.split(":")[0]
+
+
 @web.middleware
 async def tenant_middleware(request, handler):
-    """多租户中间件：从 Host 头解析租户，挂载对应 DB 连接。
+    """多租户中间件：解析租户并挂载对应 DB 连接。
 
-    逻辑:
-    - *.example.com 形式 → 提取第一段为 slug
-    - 无子域名 或 localhost → super admin
+    判定逻辑:
+    - /super-admin* 路径 → 任何域名下都走超级管理员上下文
+      （未单独绑定主域名时，子租户域名也可访问超管后台）
+    - 其余路径：从 Host 解析子域名作为 slug
+      · 提取到 slug 且租户存在/启用 → 租户上下文
+      · 提取不到 slug（主域名/IP/localhost）→ 超管上下文
     - 单租户模式 → 直接使用 default 租户
     """
     config = request.app["config"]
@@ -190,27 +224,29 @@ async def tenant_middleware(request, handler):
         request["db_conn"] = request.app["db_conn"]
         return await handler(request)
 
-    host = request.host.lower().split(":")[0]  # 去掉端口号
+    path = request.path
 
-    # localhost / 127.0.0.1 / 纯 IP → super admin
-    if host in ("localhost", "127.0.0.1") or host.count(".") <= 1:
+    # 超管路由：任何域名都可访问 /super-admin*
+    if path == "/super-admin" or path.startswith("/super-admin/"):
         request["tenant_slug"] = None
         request["tenant_info"] = None
         request["is_super_admin"] = True
         request["db_conn"] = None
         return await handler(request)
 
-    # 尝试提取子域名
-    parts = host.split(".")
+    # 其余路由：从 Host 解析租户 slug
+    host = _resolve_host(request)
+
+    # 提取子域名第一段
+    parts = host.split(".") if host else []
+    slug = None
     if len(parts) >= 3:
         slug = parts[0]
         if slug in ("www", ""):
             slug = None
-    else:
-        slug = None
 
     if slug is None:
-        # 主域名 → 超级管理员
+        # 主域名 / IP / localhost → 超级管理员上下文
         request["tenant_slug"] = None
         request["tenant_info"] = None
         request["is_super_admin"] = True
@@ -241,6 +277,7 @@ class TenantManager:
     def __init__(self):
         self.master_conn = None
         self._tenant_dbs = {}       # {slug: aiosqlite.Connection}
+        self._deleting = set()      # 正在删除的 slug，拒绝新请求
 
     async def init_master(self):
         """初始化主控数据库，确保 tenants 表存在。"""
@@ -292,19 +329,33 @@ class TenantManager:
         return await self.get_tenant(slug)
 
     async def delete_tenant(self, slug: str):
-        """删除租户：从主控库移除 + 关闭连接 + 删除数据库文件。"""
-        await self.master_conn.execute("DELETE FROM tenants WHERE slug = ?", (slug,))
-        await self.master_conn.commit()
+        """删除租户：标记删除中 → 移除主控库记录 → 关闭连接 → 删除文件。
 
-        # 关闭并移除连接
-        if slug in self._tenant_dbs:
-            await self._tenant_dbs[slug].close()
-            del self._tenant_dbs[slug]
+        标记 _deleting 后，新的 get_tenant_db 调用会立即拒绝，
+        避免 in-flight 请求在 close/remove 之后仍使用连接。
+        """
+        self._deleting.add(slug)
+        try:
+            await self.master_conn.execute("DELETE FROM tenants WHERE slug = ?", (slug,))
+            await self.master_conn.commit()
 
-        # 删除数据库文件
-        db_path = f"instance/{slug}.db"
-        if os.path.exists(db_path):
-            os.remove(db_path)
+            # 关闭并移除连接
+            if slug in self._tenant_dbs:
+                await self._tenant_dbs[slug].close()
+                del self._tenant_dbs[slug]
+
+            # 删除数据库文件
+            db_path = f"instance/{slug}.db"
+            if os.path.exists(db_path):
+                os.remove(db_path)
+
+            # 删除上传目录（递归）
+            uploads_dir = f"static/uploads/{slug}"
+            if os.path.isdir(uploads_dir):
+                import shutil
+                shutil.rmtree(uploads_dir, ignore_errors=True)
+        finally:
+            self._deleting.discard(slug)
 
     async def toggle_tenant(self, slug: str, is_active: bool):
         """启用/禁用租户。"""
@@ -374,6 +425,8 @@ class TenantManager:
 
     async def get_tenant_db(self, slug: str) -> aiosqlite.Connection:
         """获取或创建租户数据库连接（懒加载）。"""
+        if slug in self._deleting:
+            raise web.HTTPNotFound(text=f"租户 '{slug}' 正在删除")
         if slug not in self._tenant_dbs:
             db_path = f"instance/{slug}.db"
             conn = await aiosqlite.connect(db_path)
@@ -500,6 +553,10 @@ def save_file_field(file_field, prefix, slug=None):
 # ---------------------------------------------------------------------------
 def pick_font(font_path=None, size=38):
     """Pick a font that exists on the system."""
+    # 安全：禁止绝对路径与目录穿越，避免探测任意文件是否存在
+    if font_path:
+        if os.path.isabs(font_path) or ".." in font_path.split("/"):
+            font_path = None
     env_font = os.environ.get("QQZHU_FONT_PATH")
     candidates = []
     if font_path:
@@ -863,7 +920,7 @@ def require_admin(request, form=None):
         or (form.get("token") if form else None)
         or request.cookies.get("admin_token")
     )
-    if provided == token_cfg:
+    if token_cfg and secrets.compare_digest(str(provided or ""), str(token_cfg)):
         return provided
     next_url = quote(str(request.rel_url))
     raise web.HTTPFound(location=f"/admin/login?next={next_url}")
@@ -883,7 +940,7 @@ def require_super_admin(request, form=None):
         or (form.get("token") if form else None)
         or request.cookies.get("super_admin_token")
     )
-    if provided == token_cfg:
+    if token_cfg and secrets.compare_digest(str(provided or ""), str(token_cfg)):
         return True
     next_url = quote(str(request.rel_url))
     raise web.HTTPFound(location=f"/super-admin/login?next={next_url}")
@@ -894,6 +951,9 @@ def require_super_admin(request, form=None):
 # ---------------------------------------------------------------------------
 async def index(request):
     conn = request["db_conn"]
+    # 主域名 / localhost / 纯 IP → 没有租户上下文，跳转到超级管理员后台
+    if conn is None:
+        raise web.HTTPFound(location="/super-admin")
     songs = await fetch_songs_sorted(conn)
     languages = await fetch_unique_languages(conn)
     genres = await fetch_unique_genres(conn)
@@ -908,6 +968,24 @@ async def proxy_image(request):
     image_url = request.query.get("url")
     if not image_url:
         raise web.HTTPBadRequest(text="Missing 'url' parameter")
+
+    # SSRF 防护：仅允许 http/https + 非内网 IP + bilibili 图片域名
+    parsed = urlparse(image_url)
+    if parsed.scheme not in ("http", "https"):
+        raise web.HTTPBadRequest(text="仅支持 http/https 协议")
+    hostname = parsed.hostname
+    if not hostname:
+        raise web.HTTPBadRequest(text="无效的 URL")
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            raise web.HTTPForbidden(text="禁止访问内网/保留地址")
+    except ValueError:
+        pass  # 域名，继续做域名白名单校验
+    allowed_domains = ("hdslb.com", "bilibili.com", "bilivideo.com", "bilivideo.cn")
+    if not any(hostname == d or hostname.endswith("." + d) for d in allowed_domains):
+        raise web.HTTPForbidden(text="仅允许 bilibili 相关图片域名")
+
     headers = {"Referer": "https://www.bilibili.com"}
     async with aiohttp.ClientSession() as session:
         async with session.get(image_url, headers=headers) as response:
@@ -992,7 +1070,7 @@ async def admin_login_post(request):
     provided = form.get("token", "")
     next_url = form.get("next") or "/admin"
 
-    if token_cfg and provided == token_cfg:
+    if token_cfg and secrets.compare_digest(str(provided or ""), str(token_cfg)):
         resp = web.HTTPFound(location=next_url)
         resp.set_cookie("admin_token", provided, httponly=True, samesite="Lax")
         _reset_login_failure(ip)
@@ -1103,10 +1181,11 @@ async def admin_page(request):
 
 
 async def admin_action(request):
+    # 先鉴权，再做任何业务（cookie/header 已足够校验）
+    require_admin(request)
     conn = request["db_conn"]
     slug = request.get("tenant_slug")
     form = await request.post()
-    require_admin(request, form)
     action = form.get("action")
     message = ""
 
@@ -1369,7 +1448,7 @@ async def super_admin_login_post(request):
     provided = form.get("token", "")
     next_url = form.get("next") or "/super-admin"
 
-    if provided == token_cfg:
+    if token_cfg and secrets.compare_digest(str(provided or ""), str(token_cfg)):
         resp = web.HTTPFound(location=next_url)
         resp.set_cookie("super_admin_token", provided, httponly=True, samesite="Lax")
         _reset_login_failure(ip)

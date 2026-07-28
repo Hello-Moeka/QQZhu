@@ -12,7 +12,13 @@ songs.xlsx
 # 上传的文件不上传
 static/uploads/
 
+# 打包产物不上传
+*.zip
+
 # tools目录暂时不上传
 frontier/
 .env
 __pycache__/
+
+# 歌单原始数据不上传（各租户迁移源）
+QQZhuMusicList/
