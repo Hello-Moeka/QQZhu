@@ -589,7 +589,6 @@
         </div>
         <div class="player-controls">
             <button id="player-btn-play" class="player-btn-main"><i class="fas fa-play"></i></button>
-            <button id="player-btn-chorus" class="btn-chorus" title="跳至副歌高潮" style="display: none;"><i class="fas fa-bolt"></i> ⚡ 高潮</button>
             <div class="player-progress-container">
                 <span id="player-time-current">00:00</span>
                 <input type="range" id="player-progress-bar" value="0" min="0" max="100" step="0.1">
@@ -644,14 +643,12 @@
         const playerTitle = document.getElementById('player-title');
         const playerArtist = document.getElementById('player-artist');
         const playerBtnPlay = document.getElementById('player-btn-play');
-        const playerBtnChorus = document.getElementById('player-btn-chorus');
         const playerProgressBar = document.getElementById('player-progress-bar');
         const playerTimeCurrent = document.getElementById('player-time-current');
         const playerTimeDuration = document.getElementById('player-time-duration');
         const playerVolumeBar = document.getElementById('player-volume-bar');
         const playerBtnClose = document.getElementById('player-btn-close');
 
-        let currentChorusStart = 0;
         let playStartOffset = 0;
         const MAX_PREVIEW_DURATION = 30; // 限制最多播放30秒
 
@@ -661,14 +658,6 @@
             const s = Math.floor(seconds % 60);
             return (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
         }
-
-        playerBtnChorus.addEventListener('click', () => {
-            if (currentChorusStart > 0 && audioElement.duration) {
-                audioElement.currentTime = currentChorusStart;
-                playStartOffset = currentChorusStart;
-                if (audioElement.paused) audioElement.play();
-            }
-        });
 
         // 绑定所有试听按钮
         document.querySelectorAll('.btn-preview').forEach(btn => {
@@ -692,25 +681,11 @@
                             playerArtist.innerHTML = `${data.artist} <span class="badge-preview">30s 试听</span>`;
                             playerCover.src = data.picUrl || '/static/singer.jpg';
                             
-                            if (data.chorus_start && data.chorus_start > 0) {
-                                currentChorusStart = data.chorus_start;
-                                playStartOffset = currentChorusStart;
-                                playerBtnChorus.style.display = 'inline-flex';
-                                playerBtnChorus.innerHTML = `<i class="fas fa-bolt"></i> ⚡ 高潮 (${formatTime(currentChorusStart)})`;
-                            } else {
-                                currentChorusStart = 0;
-                                playStartOffset = 0;
-                                playerBtnChorus.style.display = 'none';
-                            }
-
+                            playStartOffset = 0;
                             audioElement.src = data.audio_url;
                             audioPlayerBar.classList.remove('hidden');
                             
-                            audioElement.play().then(() => {
-                                if (currentChorusStart > 0) {
-                                    audioElement.currentTime = currentChorusStart;
-                                }
-                            }).catch(err => {
+                            audioElement.play().catch(err => {
                                 console.warn("播放受阻/版权限制:", err);
                                 alert("该歌曲在网易云暂无试听资源或受版权保护。");
                             });

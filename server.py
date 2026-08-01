@@ -1001,54 +1001,6 @@ async def _resolve_audio_url(session, song_id: int) -> str:
     return f"https://music.163.com/song/media/outer/url?id={song_id}.mp3"
 
 
-def _parse_lrc_chorus_start(lrc_text: str) -> float:
-    """通过歌词重复段落分析高潮副歌起始时间。"""
-    lines = lrc_text.splitlines()
-    lrc_items = []
-    time_reg = re.compile(r'\[(\d{2}):(\d{2}(?:\.\d+)?)\](.*)')
-    for line in lines:
-        m = time_reg.match(line.strip())
-        if m:
-            mins, secs, text = int(m.group(1)), float(m.group(2)), m.group(3).strip()
-            total_sec = mins * 60 + secs
-            if text and not any(text.startswith(k) for k in ["作词", "作曲", "编曲", "制作"]):
-                lrc_items.append((total_sec, text))
-    if not lrc_items:
-        return 0.0
-
-    text_counts = {}
-    for t_sec, text in lrc_items:
-        if len(text) > 3:
-            text_counts[text] = text_counts.get(text, 0) + 1
-
-    repeat_texts = {t for t, c in text_counts.items() if c >= 2}
-    for t_sec, text in lrc_items:
-        if text in repeat_texts and t_sec > 35:
-            return round(t_sec, 1)
-
-    mid_sec = lrc_items[-1][0] * 0.33
-    for t_sec, text in lrc_items:
-        if t_sec >= mid_sec:
-            return round(t_sec, 1)
-    return 0.0
-
-
-async def _fetch_chorus_start(session, song_id: int) -> float:
-    """获取指定网易云歌曲的高潮/副歌起始秒数。"""
-    url = f"https://music.163.com/api/song/lyric?os=pc&id={song_id}&lv=-1"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    try:
-        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as resp:
-            if resp.status == 200:
-                data = await resp.json(content_type=None)
-                lrc = (data.get("lrc", {}) or {}).get("lyric", "")
-                if lrc:
-                    return _parse_lrc_chorus_start(lrc)
-    except Exception:
-        pass
-    return 0.0
-
-
 async def netease_preview_handler(request):
     """根据歌名和歌手精准匹配网易云音乐，返回原唱/精准匹配项及直连音频外链。"""
     name = request.query.get("name", "").strip()
@@ -1138,7 +1090,6 @@ async def netease_preview_handler(request):
             song_id = matched_song.get("id")
             song_name, artist_name, pic_url = parse_song_meta(matched_song)
             audio_url = await _resolve_audio_url(session, song_id)
-            chorus_start = await _fetch_chorus_start(session, song_id)
 
             return web.json_response({
                 "ok": True,
@@ -1146,8 +1097,7 @@ async def netease_preview_handler(request):
                 "audio_url": audio_url,
                 "name": song_name,
                 "artist": artist_name,
-                "picUrl": pic_url,
-                "chorus_start": chorus_start
+                "picUrl": pic_url
             })
     except Exception as exc:
         return web.json_response({"ok": False, "message": f"获取试听失败: {exc}"})
