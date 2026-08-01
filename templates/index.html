@@ -856,6 +856,7 @@
             if (audioElement.duration) {
                 const currentTime = audioElement.currentTime;
                 const playedTime = currentTime - playStartOffset;
+                const maxPreviewLimit = Math.min(audioElement.duration, MAX_PREVIEW_DURATION);
                 
                 // 30 秒试听上限限制
                 if (playedTime >= MAX_PREVIEW_DURATION || currentTime >= (playStartOffset + MAX_PREVIEW_DURATION)) {
@@ -863,14 +864,17 @@
                     audioElement.currentTime = playStartOffset; // 重置回试听起始位置
                     playerBtnPlay.innerHTML = '<i class="fas fa-play"></i>';
                     playerCoverWrap.classList.remove('playing');
+                    playerProgressBar.value = 100;
+                    playerTimeCurrent.textContent = formatTime(maxPreviewLimit);
                     showToast('30秒试听已结束，快去直播间点歌吧~');
                     return;
                 }
 
-                const pct = (currentTime / audioElement.duration) * 100;
+                const relativePlayed = Math.max(0, Math.min(playedTime, maxPreviewLimit));
+                const pct = (relativePlayed / maxPreviewLimit) * 100;
                 playerProgressBar.value = pct;
-                playerTimeCurrent.textContent = formatTime(currentTime);
-                playerTimeDuration.textContent = formatTime(audioElement.duration);
+                playerTimeCurrent.textContent = formatTime(relativePlayed);
+                playerTimeDuration.textContent = formatTime(maxPreviewLimit);
             }
         });
 
@@ -882,9 +886,9 @@
 
         playerProgressBar.addEventListener('input', function() {
             if (audioElement.duration) {
-                const seekTime = (this.value / 100) * audioElement.duration;
-                audioElement.currentTime = seekTime;
-                playStartOffset = seekTime; // 拖动进度条后重置 30 秒倒计时起点
+                const maxPreviewLimit = Math.min(audioElement.duration, MAX_PREVIEW_DURATION);
+                audioElement.currentTime = (this.value / 100) * maxPreviewLimit;
+                playStartOffset = 0;
             }
         });
 
