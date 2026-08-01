@@ -964,69 +964,110 @@ async def index(request):
     )
 
 
+async def _check_song_playable(session, song_id, headers):
+    """检测指定网易云歌曲 ID 是否存在有效音频流（过滤 404 及 HTML 错误页）。"""
+    outer_url = f"https://music.163.com/song/media/outer/url?id={song_id}.mp3"
+    try:
+        async with session.get(outer_url, headers=headers, allow_redirects=True, timeout=aiohttp.ClientTimeout(total=4)) as resp:
+            final_url = str(resp.url)
+            content_type = resp.headers.get("Content-Type", "")
+            if "404" not in final_url and "text/html" not in content_type:
+                return True, final_url
+    except Exception:
+        pass
+    return False, outer_url
+
+
 async def netease_preview_handler(request):
-    """根据歌名和歌手匹配网易云音乐并返回音频试听链接与元数据。"""
+    """根据歌名和歌手匹配网易云音乐，自动检测音源有效性并返回试听链接与元数据。"""
     name = request.query.get("name", "").strip()
     artist = request.query.get("artist", "").strip()
     if not name:
         return web.json_response({"ok": False, "message": "歌名不能为空"})
 
-    keywords = f"{name} {artist}".strip()
     url = "https://music.163.com/api/search/get/web"
-    params = {"s": keywords, "type": "1", "offset": "0", "limit": "5"}
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Referer": "https://music.163.com/",
     }
 
     try:
-        timeout = aiohttp.ClientTimeout(total=6)
+        timeout = aiohttp.ClientTimeout(total=8)
         async with aiohttp.ClientSession(timeout=timeout) as session:
+            # 1. 优先尝试 歌名 + 歌手 检索
+            keywords = f"{name} {artist}".strip()
+            params = {"s": keywords, "type": "1", "offset": "0", "limit": "10"}
             async with session.get(url, params=params, headers=headers) as resp:
                 if resp.status != 200:
                     return web.json_response({"ok": False, "message": f"网易云 API 请求失败 ({resp.status})"})
                 data = await resp.json(content_type=None)
+                songs = (data.get("result", {}) or {}).get("songs", []) or []
 
-        result = data.get("result", {}) or {}
-        songs = result.get("songs", []) or []
-
-        # 如果“歌名+歌手”没匹配到结果且有歌手参数，退一步只按歌名搜索
-        if not songs and artist:
-            params["s"] = name
-            async with aiohttp.ClientSession(timeout=timeout) as session:
+            # 2. 如果没搜索到结果，降级为仅按 歌名 检索
+            if not songs and artist:
+                params["s"] = name
                 async with session.get(url, params=params, headers=headers) as resp:
                     if resp.status == 200:
                         data = await resp.json(content_type=None)
                         songs = (data.get("result", {}) or {}).get("songs", []) or []
 
-        if not songs:
-            return web.json_response({"ok": False, "message": "网易云未找到匹配歌曲"})
+            if not songs:
+                return web.json_response({"ok": False, "message": "网易云未找到匹配歌曲"})
 
-        # 挑选最佳匹配歌曲：优先匹配歌名一致的项
-        target_song = songs[0]
-        name_clean = name.strip().lower()
-        for s in songs:
-            if s.get("name", "").strip().lower() == name_clean:
-                target_song = s
-                break
+            # 3. 按歌名完全匹配排序（同名优先）
+            name_clean = name.strip().lower()
+            exact_matches = [s for s in songs if s.get("name", "").strip().lower() == name_clean]
+            other_matches = [s for s in songs if s.get("name", "").strip().lower() != name_clean]
+            candidate_list = exact_matches + other_matches
 
-        song_id = target_song.get("id")
-        song_name = target_song.get("name", name)
-        artists_list = [ar.get("name") for ar in target_song.get("artists", []) if ar.get("name")]
-        artist_name = " / ".join(artists_list) if artists_list else artist
-        album = target_song.get("album", {}) or {}
-        pic_url = album.get("picUrl", "")
+            # 4. 遍历候选列表，检测音频外链可用性（自动过滤无版权 404）
+            for song in candidate_list:
+                song_id = song.get("id")
+                playable, audio_url = await _check_song_playable(session, song_id, headers)
+                if playable:
+                    song_name = song.get("name", name)
+                    artists_list = [ar.get("name") for ar in song.get("artists", []) if ar.get("name")]
+                    artist_name = " / ".join(artists_list) if artists_list else artist
+                    album = song.get("album", {}) or {}
+                    pic_url = album.get("picUrl", "")
+                    return web.json_response({
+                        "ok": True,
+                        "song_id": song_id,
+                        "audio_url": audio_url,
+                        "name": song_name,
+                        "artist": artist_name,
+                        "picUrl": pic_url
+                    })
 
-        audio_url = f"https://music.163.com/song/media/outer/url?id={song_id}.mp3"
+            # 5. 如果 歌名+歌手 搜出的候选均无可用音源，再用 纯歌名 广域搜一次候选
+            if artist:
+                params["s"] = name
+                async with session.get(url, params=params, headers=headers) as resp:
+                    if resp.status == 200:
+                        data = await resp.json(content_type=None)
+                        fallback_songs = (data.get("result", {}) or {}).get("songs", []) or []
+                
+                fallback_exact = [s for s in fallback_songs if s.get("name", "").strip().lower() == name_clean]
+                fallback_list = fallback_exact + [s for s in fallback_songs if s not in fallback_exact]
+                for song in fallback_list:
+                    song_id = song.get("id")
+                    playable, audio_url = await _check_song_playable(session, song_id, headers)
+                    if playable:
+                        song_name = song.get("name", name)
+                        artists_list = [ar.get("name") for ar in song.get("artists", []) if ar.get("name")]
+                        artist_name = " / ".join(artists_list) if artists_list else artist
+                        album = song.get("album", {}) or {}
+                        pic_url = album.get("picUrl", "")
+                        return web.json_response({
+                            "ok": True,
+                            "song_id": song_id,
+                            "audio_url": audio_url,
+                            "name": song_name,
+                            "artist": artist_name,
+                            "picUrl": pic_url
+                        })
 
-        return web.json_response({
-            "ok": True,
-            "song_id": song_id,
-            "audio_url": audio_url,
-            "name": song_name,
-            "artist": artist_name,
-            "picUrl": pic_url
-        })
+            return web.json_response({"ok": False, "message": "该歌曲在网易云暂无可用试听资源（受版权保护或已下架）"})
     except Exception as exc:
         return web.json_response({"ok": False, "message": f"获取试听失败: {exc}"})
 
