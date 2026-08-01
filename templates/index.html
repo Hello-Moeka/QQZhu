@@ -784,6 +784,10 @@
             font-size: 13px;
             border-top: 1px solid rgba(255, 255, 255, 0.15);
         }
+        .footer p {
+            margin: 0;
+            padding: 0;
+        }
         .footer a {
             color: #ffffff;
             text-decoration: none;
@@ -1005,11 +1009,12 @@
     </div>
 
     <!-- 备案号页脚 -->
-    {% if settings.icp %}
     <div class="footer">
-        <a href="https://beian.miit.gov.cn/" target="_blank">{{ settings.icp }}</a>
+        <p>
+            <a href="https://beian.miit.gov.cn/" target="_blank">苏ICP备2026009705号-1</a> 
+            ｜ 苏公网安备32021402004572号
+        </p>
     </div>
-    {% endif %}
 
     <!-- 顶部浮动 Toast 提示框 -->
     <div id="toast-notification" class="toast-notification">
