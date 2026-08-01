@@ -297,8 +297,8 @@
             to { transform: rotate(360deg); }
         }
         .player-info {
-            min-width: 120px;
-            max-width: 170px;
+            min-width: 110px;
+            max-width: 190px;
             overflow: hidden;
         }
         .player-title {
@@ -309,13 +309,31 @@
             text-overflow: ellipsis;
             color: #fff;
         }
-        .player-artist {
+        .player-artist-wrap {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 2px;
+            min-width: 0;
+        }
+        .player-artist-name {
             font-size: 12px;
             color: #aaa;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            margin-top: 2px;
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+        .badge-preview {
+            background: rgba(255, 71, 87, 0.25);
+            color: #ff6b81;
+            border: 1px solid rgba(255, 71, 87, 0.4);
+            border-radius: 10px;
+            padding: 1px 6px;
+            font-size: 10px;
+            flex-shrink: 0;
+            white-space: nowrap;
         }
         .player-controls {
             flex: 1;
@@ -537,17 +555,18 @@
             }
             .player-info {
                 min-width: 0;
-                max-width: 85px;
+                max-width: 100px;
                 flex: 0 1 auto;
             }
             .player-title {
                 font-size: 13px;
             }
-            .player-artist {
+            .player-artist-name {
                 font-size: 11px;
             }
             .badge-preview {
-                display: none; /* 移动端隐藏 30s 标签精简空间 */
+                font-size: 9px;
+                padding: 1px 4px;
             }
             .player-controls {
                 gap: 6px;
@@ -681,7 +700,10 @@
         </div>
         <div class="player-info">
             <div id="player-title" class="player-title">歌曲名称</div>
-            <div id="player-artist" class="player-artist">歌手名称</div>
+            <div class="player-artist-wrap">
+                <span id="player-artist" class="player-artist-name">歌手名称</span>
+                <span class="badge-preview">30s 试听</span>
+            </div>
         </div>
         <div class="player-controls">
             <button id="player-btn-play" class="player-btn-main"><i class="fas fa-play"></i></button>
@@ -788,7 +810,7 @@
 
                         if (data.ok) {
                             playerTitle.textContent = data.name;
-                            playerArtist.innerHTML = `${data.artist} <span class="badge-preview">30s 试听</span>`;
+                            playerArtist.textContent = data.artist;
                             playerCover.src = data.picUrl || '/static/singer.jpg';
                             
                             playStartOffset = 0;
