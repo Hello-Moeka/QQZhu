@@ -118,7 +118,7 @@
         }
 
         /* ----------------------------------------------------
-           Apple 晶莹剔透歌手介绍面板 (Prismatic Crystal Specular Panel)
+           Apple 晶莹剔透歌手介绍面板
            ---------------------------------------------------- */
         .intro {
             background: var(--apple-glass-bg);
@@ -183,7 +183,7 @@
         }
 
         /* ----------------------------------------------------
-           Apple 水晶搜索过滤栏与 Segmented Button
+           Apple 搜索过滤栏与 Icon Wrapper
            ---------------------------------------------------- */
         .song-list {
             background: var(--apple-glass-bg);
@@ -207,6 +207,26 @@
             flex-wrap: wrap;
             align-items: center;
         }
+        
+        .input-icon-wrap {
+            position: relative;
+            flex: 1;
+            min-width: 170px;
+            display: flex;
+            align-items: center;
+        }
+        .input-icon-wrap .input-icon {
+            position: absolute;
+            left: 15px;
+            color: rgba(255, 255, 255, 0.65);
+            font-size: 13px;
+            pointer-events: none;
+        }
+        .input-icon-wrap input {
+            width: 100%;
+            padding-left: 38px !important;
+        }
+
         .filter-bar input,
         .filter-bar select {
             padding: 10px 16px;
@@ -215,8 +235,6 @@
             border-radius: 9999px;
             font-size: 14px;
             font-family: var(--apple-font);
-            flex: 1;
-            min-width: 170px;
             background: rgba(255, 255, 255, 0.12);
             backdrop-filter: blur(20px);
             color: #ffffff;
@@ -226,6 +244,10 @@
         }
         .filter-bar input::placeholder {
             color: rgba(255, 255, 255, 0.70);
+        }
+        .filter-bar select {
+            flex: 1;
+            min-width: 150px;
         }
         .filter-bar select option {
             background: #181a28;
@@ -681,7 +703,7 @@
             .intro img { width: 105px; height: 105px; }
             .song-list { padding: 18px; border-radius: 24px; width: 94%; }
             .filter-bar { flex-direction: column; align-items: stretch; gap: 8px; }
-            .filter-bar input,
+            .input-icon-wrap,
             .filter-bar select,
             .filter-bar button { width: 100%; min-width: 0; font-size: 14px; }
             .song-grid { grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 12px; }
@@ -797,8 +819,14 @@
     <!-- 歌曲列表 -->
     <div class="song-list hide-table">
         <div class="filter-bar">
-            <input type="text" id="filter-name" placeholder="🔍 搜索歌名...">
-            <input type="text" id="filter-artist" placeholder="👤 搜索歌手...">
+            <div class="input-icon-wrap">
+                <i class="fas fa-search input-icon"></i>
+                <input type="text" id="filter-name" placeholder="搜索歌名...">
+            </div>
+            <div class="input-icon-wrap">
+                <i class="fas fa-user input-icon"></i>
+                <input type="text" id="filter-artist" placeholder="搜索歌手...">
+            </div>
             <select id="filter-language">
                 <option value="">所有语言</option>
                 {% for lang in languages %}
