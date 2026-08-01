@@ -19,9 +19,9 @@
             /* 水晶高透 Liquid Glass 材质 */
             --apple-glass-bg: rgba(255, 255, 255, 0.10);
             --apple-glass-card-bg: rgba(255, 255, 255, 0.08);
-            --apple-glass-hover-bg: rgba(255, 255, 255, 0.18);
+            --apple-glass-hover-bg: rgba(255, 255, 255, 0.16);
             
-            /* 高光切面折射光边 (Specular Rim Light Sheen) */
+            /* 高光切面折射光边 */
             --apple-glass-border: rgba(255, 255, 255, 0.25);
             --apple-glass-top-border: rgba(255, 255, 255, 0.85);
             --apple-glass-left-border: rgba(255, 255, 255, 0.55);
@@ -50,7 +50,6 @@
             font-family: var(--apple-font);
             margin: 0;
             padding: 0;
-            /* 水晶最高通透度：极薄流光暗晕 */
             background-color: #0b0d17;
             background-image: linear-gradient(135deg, rgba(12, 14, 26, 0.20) 0%, rgba(22, 26, 44, 0.10) 50%, rgba(10, 12, 22, 0.22) 100%), url('{{ settings.background_url }}');
             background-size: cover;
@@ -67,37 +66,56 @@
         }
 
         /* ----------------------------------------------------
-           Apple 液态玻璃悬浮扫光与水光弹力动态 (Liquid Glass Sheen Dynamics)
+           Apple VisionOS 光随动液态玻璃 (Cursor-Tracking Specular Sheen)
            ---------------------------------------------------- */
         .song-card,
-        .btn-preview,
-        .intro,
-        .navbar a {
+        .intro {
             position: relative;
-            overflow: hidden;
+            perspective: 1000px;
+            transform-style: preserve-3d;
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                        box-shadow 0.4s ease,
+                        background 0.4s ease,
+                        border-color 0.4s ease;
         }
 
-        /* 晶莹液态光晕扫过动画 (Liquid Light Wave Sweep) */
-        .song-card::after,
-        .intro::after,
-        .navbar a::after {
+        /* 随鼠标移动的平滑液态面高光 (Radial Liquid Surface Light) */
+        .song-card::before,
+        .intro::before {
             content: '';
             position: absolute;
-            top: -50%;
-            left: -60%;
-            width: 55%;
-            height: 200%;
-            background: linear-gradient(115deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.45) 50%, rgba(255, 255, 255, 0) 100%);
-            transform: rotate(25deg) translateX(-180%);
-            transition: transform 0.75s cubic-bezier(0.19, 1, 0.22, 1);
+            inset: 0;
+            border-radius: inherit;
+            background: radial-gradient(550px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.05) 50%, transparent 80%);
+            opacity: 0;
+            transition: opacity 0.4s ease;
             pointer-events: none;
             z-index: 2;
         }
 
+        /* 随鼠标位置游动的边缘高光切面 (Cursor-Tracking Specular Rim Border) */
+        .song-card::after,
+        .intro::after {
+            content: '';
+            position: absolute;
+            inset: -1.5px;
+            border-radius: inherit;
+            padding: 1.5px;
+            background: radial-gradient(350px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.45) 45%, rgba(255, 255, 255, 0.15) 100%);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        .song-card:hover::before,
+        .intro:hover::before,
         .song-card:hover::after,
-        .intro:hover::after,
-        .navbar a:hover::after {
-            transform: rotate(25deg) translateX(550%);
+        .intro:hover::after {
+            opacity: 1;
         }
 
         /* ----------------------------------------------------
@@ -169,10 +187,9 @@
             display: flex;
             align-items: flex-start;
             gap: 24px;
-            transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease;
         }
         .intro:hover {
-            transform: translateY(-3px);
+            transform: perspective(1000px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) translateY(-3px);
             box-shadow: 0 22px 55px rgba(0, 0, 0, 0.28), inset 0 1.5px 1px rgba(255, 255, 255, 0.95);
         }
         .intro img {
@@ -337,7 +354,7 @@
         }
 
         /* ----------------------------------------------------
-           Apple 晶莹剔透水光卡片网格 (带液态悬浮扫光)
+           Apple 晶莹剔透水光卡片网格
            ---------------------------------------------------- */
         .song-grid {
             display: grid;
@@ -354,24 +371,15 @@
             border-radius: 20px;
             padding: 16px;
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15), inset 0 1.5px 1px rgba(255, 255, 255, 0.65);
-            transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        background 0.3s ease,
-                        border-color 0.3s ease,
-                        box-shadow 0.3s ease;
             cursor: pointer;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
         }
         .song-card:hover {
-            transform: translateY(-6px) scale(1.025);
-            background: rgba(255, 255, 255, 0.22);
-            border-color: rgba(255, 255, 255, 0.65);
-            border-top-color: rgba(255, 255, 255, 0.98);
-            border-left-color: rgba(255, 255, 255, 0.75);
-            box-shadow: 0 20px 48px rgba(0, 0, 0, 0.30),
-                        inset 0 2px 2px rgba(255, 255, 255, 0.90),
-                        0 0 20px rgba(255, 255, 255, 0.20);
+            transform: perspective(1000px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) translateY(-5px) scale(1.02);
+            background: var(--apple-glass-hover-bg);
+            box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28), inset 0 1.5px 1px rgba(255, 255, 255, 0.90);
         }
         .song-card h4 {
             font-size: 16px;
@@ -417,7 +425,7 @@
             gap: 4px;
         }
         .song-actions a:hover {
-            background: rgba(255, 255, 255, 0.32);
+            background: rgba(255, 255, 255, 0.28);
             transform: scale(1.04);
         }
 
@@ -506,7 +514,7 @@
             border-bottom-right-radius: 12px;
         }
         .song-list-table tbody tr:hover {
-            background: rgba(255, 255, 255, 0.24);
+            background: rgba(255, 255, 255, 0.22);
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
         }
@@ -989,6 +997,36 @@
     </div>
 
     <script>
+        // ----------------------------------------------------
+        // 鼠标随动液态玻璃光影与微倾斜 (Cursor-Tracking Specular & 3D Tilt)
+        // ----------------------------------------------------
+        document.querySelectorAll('.song-card, .intro').forEach(card => {
+            card.addEventListener('mousemove', (e) => {
+                const rect = card.getBoundingClientRect();
+                const x = (e.clientX - rect.left) / rect.width;
+                const y = (e.clientY - rect.top) / rect.height;
+
+                const mouseXPct = (x * 100).toFixed(1) + '%';
+                const mouseYPct = (y * 100).toFixed(1) + '%';
+
+                // 细微拟真 3D 倾斜角度 (-5deg 到 5deg)
+                const tiltX = ((y - 0.5) * -5).toFixed(2) + 'deg';
+                const tiltY = ((x - 0.5) * 5).toFixed(2) + 'deg';
+
+                card.style.setProperty('--mouse-x', mouseXPct);
+                card.style.setProperty('--mouse-y', mouseYPct);
+                card.style.setProperty('--tilt-x', tiltX);
+                card.style.setProperty('--tilt-y', tiltY);
+            });
+
+            card.addEventListener('mouseleave', () => {
+                card.style.setProperty('--tilt-x', '0deg');
+                card.style.setProperty('--tilt-y', '0deg');
+                card.style.setProperty('--mouse-x', '50%');
+                card.style.setProperty('--mouse-y', '50%');
+            });
+        });
+
         // 顶部浮动提示框
         let toastTimer = null;
         function showToast(msg) {
