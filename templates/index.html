@@ -11,33 +11,42 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         /* ----------------------------------------------------
-           Apple VisionOS / macOS Sequoia 超轻量通透液态玻璃 Token
+           Apple VisionOS / macOS Sequoia 官方液态玻璃 (Liquid Glass HIG) Token
            ---------------------------------------------------- */
         :root {
             --apple-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
             
-            /* 水晶高透 Liquid Glass 材质 */
+            /* Apple 官方 Liquid Glass 深度材质 */
             --apple-glass-bg: rgba(255, 255, 255, 0.10);
             --apple-glass-card-bg: rgba(255, 255, 255, 0.08);
-            --apple-glass-hover-bg: rgba(255, 255, 255, 0.16);
+            --apple-glass-hover-bg: rgba(255, 255, 255, 0.17);
             
-            /* 高光切面折射光边 */
-            --apple-glass-border: rgba(255, 255, 255, 0.25);
+            /* 切面棱镜反射边框 (Specular Rim Light) */
+            --apple-glass-border: rgba(255, 255, 255, 0.22);
             --apple-glass-top-border: rgba(255, 255, 255, 0.85);
             --apple-glass-left-border: rgba(255, 255, 255, 0.55);
             
-            /* 超轻量高斯模糊强度 8px */
-            --apple-blur: blur(8px) saturate(160%);
-            --apple-card-shadow: 0 16px 45px rgba(0, 0, 0, 0.22), inset 0 1.5px 1px rgba(255, 255, 255, 0.70), inset 0 -1px 1px rgba(0, 0, 0, 0.15);
+            /* Apple 系统模糊与高饱和折射参数 */
+            --apple-blur: blur(32px) saturate(210%);
+            --apple-card-shadow: 0 16px 45px rgba(0, 0, 0, 0.25), 
+                                inset 0 1.5px 1px rgba(255, 255, 255, 0.70), 
+                                inset 0 -1.5px 1px rgba(0, 0, 0, 0.12);
             
-            /* 纯色 Accent (和谐不突兀) */
+            /* Apple 官方纯色 Accent (HIG 无渐变规范) */
             --apple-blue: #007aff;
             --apple-blue-hover: #0062cc;
+            --apple-pink: #ff2d55;
+            --apple-pink-hover: #e02447;
             --apple-green: #34c759;
 
             --text-main: #ffffff;
             --text-sub: rgba(255, 255, 255, 0.90);
+            --text-muted: rgba(255, 255, 255, 0.65);
             --text-shadow: 0 2px 8px rgba(0, 0, 0, 0.85);
+
+            /* Apple 弹力曲线 (System Spring Physics Easing) */
+            --apple-ease: cubic-bezier(0.16, 1, 0.3, 1);
+            --apple-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
         * {
@@ -50,8 +59,9 @@
             font-family: var(--apple-font);
             margin: 0;
             padding: 0;
-            background-color: #0b0d17;
-            background-image: linear-gradient(135deg, rgba(12, 14, 26, 0.20) 0%, rgba(22, 26, 44, 0.10) 50%, rgba(10, 12, 22, 0.22) 100%), url('{{ settings.background_url }}');
+            background-color: #080a14;
+            /* Apple 通透黑晶底图，保留用户背景图全貌与折射度 */
+            background-image: linear-gradient(135deg, rgba(10, 12, 24, 0.22) 0%, rgba(20, 24, 42, 0.12) 50%, rgba(8, 10, 20, 0.25) 100%), url('{{ settings.background_url }}');
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
@@ -66,17 +76,17 @@
         }
 
         /* ----------------------------------------------------
-           Apple VisionOS 光随动液态玻璃 (Cursor-Tracking Specular Sheen)
+           Apple VisionOS 鼠标随动液态光影 shader (Cursor-Tracking Liquid Specular)
            ---------------------------------------------------- */
         .song-card,
         .intro {
             position: relative;
             perspective: 1000px;
             transform-style: preserve-3d;
-            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
-                        box-shadow 0.4s ease,
-                        background 0.4s ease,
-                        border-color 0.4s ease;
+            transition: transform 0.4s var(--apple-ease),
+                        box-shadow 0.4s var(--apple-ease),
+                        background 0.4s var(--apple-ease),
+                        border-color 0.4s var(--apple-ease);
         }
 
         /* 随鼠标移动的平滑液态面高光 (Radial Liquid Surface Light) */
@@ -86,9 +96,9 @@
             position: absolute;
             inset: 0;
             border-radius: inherit;
-            background: radial-gradient(550px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.05) 50%, transparent 80%);
+            background: radial-gradient(500px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.06) 45%, transparent 75%);
             opacity: 0;
-            transition: opacity 0.4s ease;
+            transition: opacity 0.35s ease;
             pointer-events: none;
             z-index: 2;
         }
@@ -101,12 +111,12 @@
             inset: -1.5px;
             border-radius: inherit;
             padding: 1.5px;
-            background: radial-gradient(350px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.45) 45%, rgba(255, 255, 255, 0.15) 100%);
+            background: radial-gradient(320px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.45) 45%, rgba(255, 255, 255, 0.15) 100%);
             -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
             -webkit-mask-composite: xor;
             mask-composite: exclude;
             opacity: 0;
-            transition: opacity 0.4s ease;
+            transition: opacity 0.35s ease;
             pointer-events: none;
             z-index: 3;
         }
@@ -123,15 +133,15 @@
            ---------------------------------------------------- */
         .navbar {
             width: fit-content;
-            margin-top: 16px;
+            margin-top: 18px;
             background: rgba(255, 255, 255, 0.12);
             backdrop-filter: var(--apple-blur);
             -webkit-backdrop-filter: var(--apple-blur);
             border: 1px solid var(--apple-glass-border);
             border-top: 1.5px solid var(--apple-glass-top-border);
             border-left: 1.5px solid var(--apple-glass-left-border);
-            box-shadow: 0 10px 35px rgba(0, 0, 0, 0.2), inset 0 1.5px 1px rgba(255, 255, 255, 0.7);
-            padding: 6px 12px;
+            box-shadow: 0 10px 35px rgba(0, 0, 0, 0.22), inset 0 1.5px 1px rgba(255, 255, 255, 0.7);
+            padding: 6px 10px;
             border-radius: 9999px;
             display: flex;
             justify-content: center;
@@ -149,23 +159,29 @@
             padding: 8px 18px;
             border-radius: 9999px;
             text-shadow: var(--text-shadow);
-            transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+            transition: all 0.25s var(--apple-ease);
             display: inline-flex;
             align-items: center;
             gap: 6px;
         }
         .navbar a i {
             color: var(--apple-blue);
+            transition: color 0.2s ease;
         }
-        .navbar a:hover,
+        .navbar a:hover {
+            background: rgba(255, 255, 255, 0.20);
+            color: #ffffff;
+        }
         .navbar a.active {
             background: var(--apple-blue);
             color: #ffffff;
             box-shadow: 0 4px 15px rgba(0, 122, 255, 0.45);
         }
-        .navbar a:hover i,
         .navbar a.active i {
             color: #ffffff;
+        }
+        .navbar a:active {
+            transform: scale(0.96);
         }
 
         /* ----------------------------------------------------
@@ -200,7 +216,7 @@
             flex-shrink: 0;
             border: 2.5px solid rgba(255, 255, 255, 0.75);
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-            transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: transform 0.35s var(--apple-spring);
         }
         .intro img:hover {
             transform: scale(1.06) rotate(2deg);
@@ -219,7 +235,7 @@
             color: #ffffff;
             text-decoration: none;
             text-shadow: var(--text-shadow);
-            transition: color 0.2s;
+            transition: color 0.2s ease;
         }
         .intro h2 a:hover {
             color: var(--apple-blue);
@@ -287,11 +303,11 @@
             font-size: 14px;
             font-family: var(--apple-font);
             background: rgba(255, 255, 255, 0.12);
-            backdrop-filter: blur(6px);
+            backdrop-filter: blur(12px);
             color: #ffffff;
             outline: none;
             text-shadow: var(--text-shadow);
-            transition: all 0.25s ease;
+            transition: all 0.25s var(--apple-ease);
         }
         .filter-bar input::placeholder {
             color: rgba(255, 255, 255, 0.70);
@@ -321,7 +337,7 @@
             font-family: var(--apple-font);
             cursor: pointer;
             text-shadow: var(--text-shadow);
-            transition: all 0.25s ease;
+            transition: all 0.25s var(--apple-ease);
             box-shadow: 0 4px 16px rgba(0, 122, 255, 0.4);
             display: inline-flex;
             align-items: center;
@@ -331,6 +347,9 @@
             background: var(--apple-blue-hover);
             transform: translateY(-1px);
             box-shadow: 0 6px 20px rgba(0, 122, 255, 0.55);
+        }
+        .filter-bar button:active {
+            transform: scale(0.96);
         }
 
         /* 分类标题 */
@@ -377,9 +396,12 @@
             justify-content: space-between;
         }
         .song-card:hover {
-            transform: perspective(1000px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) translateY(-5px) scale(1.02);
+            transform: perspective(1000px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) translateY(-5px) scale(1.018);
             background: var(--apple-glass-hover-bg);
             box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28), inset 0 1.5px 1px rgba(255, 255, 255, 0.90);
+        }
+        .song-card:active {
+            transform: scale(0.97);
         }
         .song-card h4 {
             font-size: 16px;
@@ -419,7 +441,7 @@
             padding: 5px 13px;
             border-radius: 9999px;
             text-shadow: var(--text-shadow);
-            transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: all 0.25s var(--apple-spring);
             display: inline-flex;
             align-items: center;
             gap: 4px;
@@ -428,9 +450,12 @@
             background: rgba(255, 255, 255, 0.28);
             transform: scale(1.04);
         }
+        .song-actions a:active {
+            transform: scale(0.95);
+        }
 
         /* ----------------------------------------------------
-           试听按钮 (和谐高透毛玻璃胶囊 - 水光灵动)
+           试听按钮 (Apple 极简高透毛玻璃胶囊)
            ---------------------------------------------------- */
         .btn-preview {
             background: rgba(255, 255, 255, 0.16);
@@ -445,7 +470,7 @@
             font-weight: 600;
             font-family: var(--apple-font);
             cursor: pointer;
-            transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: all 0.25s var(--apple-spring);
             display: inline-flex;
             align-items: center;
             gap: 6px;
@@ -461,6 +486,9 @@
             border-color: rgba(255, 255, 255, 0.65);
             transform: translateY(-1px) scale(1.05);
             box-shadow: 0 6px 20px rgba(0, 122, 255, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.85);
+        }
+        .btn-preview:active {
+            transform: scale(0.94);
         }
         .btn-preview.loading {
             opacity: 0.7;
@@ -494,7 +522,7 @@
             background: rgba(255, 255, 255, 0.08);
             backdrop-filter: blur(8px);
             cursor: pointer;
-            transition: all 0.25s ease;
+            transition: all 0.25s var(--apple-ease);
         }
         .song-list-table tbody tr td {
             border-top: 1px solid rgba(255, 255, 255, 0.15);
@@ -552,7 +580,7 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            transition: top 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.35s ease;
+            transition: top 0.35s var(--apple-spring), opacity 0.35s ease;
             opacity: 0;
             pointer-events: none;
             border: 1px solid rgba(255, 255, 255, 0.30);
@@ -591,7 +619,7 @@
             align-items: center;
             gap: 16px;
             z-index: 9999;
-            transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.35s ease;
+            transition: transform 0.35s var(--apple-spring), opacity 0.35s ease;
         }
         .audio-player-bar.hidden {
             transform: translate(-50%, 160%);
@@ -678,13 +706,16 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.2s, background-color 0.2s;
+            transition: transform 0.2s var(--apple-spring), background-color 0.2s ease;
             flex-shrink: 0;
             box-shadow: 0 4px 14px rgba(0, 122, 255, 0.4);
         }
         .player-btn-main:hover {
             background: var(--apple-blue-hover);
-            transform: scale(1.06);
+            transform: scale(1.08);
+        }
+        .player-btn-main:active {
+            transform: scale(0.92);
         }
         .player-progress-container {
             display: flex;
@@ -998,7 +1029,7 @@
 
     <script>
         // ----------------------------------------------------
-        // 鼠标随动液态玻璃光影与微倾斜 (Cursor-Tracking Specular & 3D Tilt)
+        // Apple VisionOS 鼠标随动液态光影与 3D 倾斜 (Apple HIG Spatial Dynamics)
         // ----------------------------------------------------
         document.querySelectorAll('.song-card, .intro').forEach(card => {
             card.addEventListener('mousemove', (e) => {
@@ -1009,7 +1040,7 @@
                 const mouseXPct = (x * 100).toFixed(1) + '%';
                 const mouseYPct = (y * 100).toFixed(1) + '%';
 
-                // 细微拟真 3D 倾斜角度 (-5deg 到 5deg)
+                // Apple 优雅 3D 倾斜
                 const tiltX = ((y - 0.5) * -5).toFixed(2) + 'deg';
                 const tiltY = ((x - 0.5) * 5).toFixed(2) + 'deg';
 
