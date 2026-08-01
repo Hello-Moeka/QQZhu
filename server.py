@@ -985,19 +985,29 @@ async def netease_preview_handler(request):
     if not name:
         return web.json_response({"ok": False, "message": "歌名不能为空"})
 
-    url = "https://music.163.com/api/search/get/web"
+    url = "https://music.163.com/api/cloudsearch/pc"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Referer": "https://music.163.com/",
+        "Cookie": "appver=2.0.2; NMTID=00h; os=pc;",
     }
+
+    def parse_song_meta(song):
+        song_name = song.get("name", name)
+        ar_objs = song.get("ar", song.get("artists", [])) or []
+        artists_list = [ar.get("name") for ar in ar_objs if isinstance(ar, dict) and ar.get("name")]
+        artist_name = " / ".join(artists_list) if artists_list else artist
+        album = song.get("al", song.get("album", {})) or {}
+        pic_url = album.get("picUrl", "") if isinstance(album, dict) else ""
+        return song_name, artist_name, pic_url
 
     try:
         timeout = aiohttp.ClientTimeout(total=8)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             # 1. 优先尝试 歌名 + 歌手 检索
             keywords = f"{name} {artist}".strip()
-            params = {"s": keywords, "type": "1", "offset": "0", "limit": "10"}
-            async with session.get(url, params=params, headers=headers) as resp:
+            form_data = {"s": keywords, "type": "1", "offset": "0", "limit": "10"}
+            async with session.post(url, data=form_data, headers=headers) as resp:
                 if resp.status != 200:
                     return web.json_response({"ok": False, "message": f"网易云 API 请求失败 ({resp.status})"})
                 data = await resp.json(content_type=None)
@@ -1005,8 +1015,8 @@ async def netease_preview_handler(request):
 
             # 2. 如果没搜索到结果，降级为仅按 歌名 检索
             if not songs and artist:
-                params["s"] = name
-                async with session.get(url, params=params, headers=headers) as resp:
+                form_data["s"] = name
+                async with session.post(url, data=form_data, headers=headers) as resp:
                     if resp.status == 200:
                         data = await resp.json(content_type=None)
                         songs = (data.get("result", {}) or {}).get("songs", []) or []
@@ -1025,11 +1035,7 @@ async def netease_preview_handler(request):
                 song_id = song.get("id")
                 playable, audio_url = await _check_song_playable(session, song_id, headers)
                 if playable:
-                    song_name = song.get("name", name)
-                    artists_list = [ar.get("name") for ar in song.get("artists", []) if ar.get("name")]
-                    artist_name = " / ".join(artists_list) if artists_list else artist
-                    album = song.get("album", {}) or {}
-                    pic_url = album.get("picUrl", "")
+                    song_name, artist_name, pic_url = parse_song_meta(song)
                     return web.json_response({
                         "ok": True,
                         "song_id": song_id,
@@ -1041,8 +1047,8 @@ async def netease_preview_handler(request):
 
             # 5. 如果 歌名+歌手 搜出的候选均无可用音源，再用 纯歌名 广域搜一次候选
             if artist:
-                params["s"] = name
-                async with session.get(url, params=params, headers=headers) as resp:
+                form_data["s"] = name
+                async with session.post(url, data=form_data, headers=headers) as resp:
                     if resp.status == 200:
                         data = await resp.json(content_type=None)
                         fallback_songs = (data.get("result", {}) or {}).get("songs", []) or []
@@ -1053,11 +1059,7 @@ async def netease_preview_handler(request):
                     song_id = song.get("id")
                     playable, audio_url = await _check_song_playable(session, song_id, headers)
                     if playable:
-                        song_name = song.get("name", name)
-                        artists_list = [ar.get("name") for ar in song.get("artists", []) if ar.get("name")]
-                        artist_name = " / ".join(artists_list) if artists_list else artist
-                        album = song.get("album", {}) or {}
-                        pic_url = album.get("picUrl", "")
+                        song_name, artist_name, pic_url = parse_song_meta(song)
                         return web.json_response({
                             "ok": True,
                             "song_id": song_id,
