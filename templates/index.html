@@ -379,6 +379,26 @@
         .player-btn-icon:hover {
             color: #fff;
         }
+        .btn-chorus {
+            background: linear-gradient(135deg, #ff4757, #ff6b81);
+            color: white;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+        .btn-chorus:hover {
+            transform: scale(1.06);
+            box-shadow: 0 3px 10px rgba(255, 71, 87, 0.5);
+        }
         /* 备案号样式 */
         .footer {
             width: 100%;
@@ -559,6 +579,7 @@
         </div>
         <div class="player-controls">
             <button id="player-btn-play" class="player-btn-main"><i class="fas fa-play"></i></button>
+            <button id="player-btn-chorus" class="btn-chorus" title="跳至副歌高潮" style="display: none;"><i class="fas fa-bolt"></i> ⚡ 高潮</button>
             <div class="player-progress-container">
                 <span id="player-time-current">00:00</span>
                 <input type="range" id="player-progress-bar" value="0" min="0" max="100" step="0.1">
@@ -613,11 +634,14 @@
         const playerTitle = document.getElementById('player-title');
         const playerArtist = document.getElementById('player-artist');
         const playerBtnPlay = document.getElementById('player-btn-play');
+        const playerBtnChorus = document.getElementById('player-btn-chorus');
         const playerProgressBar = document.getElementById('player-progress-bar');
         const playerTimeCurrent = document.getElementById('player-time-current');
         const playerTimeDuration = document.getElementById('player-time-duration');
         const playerVolumeBar = document.getElementById('player-volume-bar');
         const playerBtnClose = document.getElementById('player-btn-close');
+
+        let currentChorusStart = 0;
 
         function formatTime(seconds) {
             if (isNaN(seconds) || seconds < 0) return '00:00';
@@ -625,6 +649,13 @@
             const s = Math.floor(seconds % 60);
             return (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
         }
+
+        playerBtnChorus.addEventListener('click', () => {
+            if (currentChorusStart > 0 && audioElement.duration) {
+                audioElement.currentTime = currentChorusStart;
+                if (audioElement.paused) audioElement.play();
+            }
+        });
 
         // 绑定所有试听按钮
         document.querySelectorAll('.btn-preview').forEach(btn => {
@@ -648,9 +679,23 @@
                             playerArtist.textContent = data.artist;
                             playerCover.src = data.picUrl || '/static/singer.jpg';
                             
+                            if (data.chorus_start && data.chorus_start > 0) {
+                                currentChorusStart = data.chorus_start;
+                                playerBtnChorus.style.display = 'inline-flex';
+                                playerBtnChorus.innerHTML = `<i class="fas fa-bolt"></i> ⚡ 高潮 (${formatTime(currentChorusStart)})`;
+                            } else {
+                                currentChorusStart = 0;
+                                playerBtnChorus.style.display = 'none';
+                            }
+
                             audioElement.src = data.audio_url;
                             audioPlayerBar.classList.remove('hidden');
-                            audioElement.play().catch(err => {
+                            
+                            audioElement.play().then(() => {
+                                if (currentChorusStart > 0) {
+                                    audioElement.currentTime = currentChorusStart;
+                                }
+                            }).catch(err => {
                                 console.warn("播放受阻/版权限制:", err);
                                 alert("该歌曲在网易云暂无试听资源或受版权保护。");
                             });
