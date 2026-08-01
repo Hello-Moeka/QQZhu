@@ -514,6 +514,64 @@
                 font-size: 12px;
                 padding: 15px 0;
             }
+            /* 移动端播放器专属优化 */
+            .audio-player-bar {
+                bottom: 12px;
+                left: 12px;
+                right: 12px;
+                width: auto;
+                max-width: none;
+                transform: none;
+                border-radius: 20px;
+                padding: 8px 12px;
+                gap: 8px;
+                box-shadow: 0 8px 25px rgba(0, 0, 0, 0.45);
+            }
+            .audio-player-bar.hidden {
+                transform: translateY(150%);
+                opacity: 0;
+            }
+            .player-cover-wrap img {
+                width: 38px;
+                height: 38px;
+            }
+            .player-info {
+                min-width: 0;
+                max-width: 85px;
+                flex: 0 1 auto;
+            }
+            .player-title {
+                font-size: 13px;
+            }
+            .player-artist {
+                font-size: 11px;
+            }
+            .badge-preview {
+                display: none; /* 移动端隐藏 30s 标签精简空间 */
+            }
+            .player-controls {
+                gap: 6px;
+                flex: 1;
+                min-width: 0;
+            }
+            .player-btn-main {
+                width: 34px;
+                height: 34px;
+                font-size: 13px;
+            }
+            .player-progress-container {
+                gap: 6px;
+            }
+            #player-time-duration {
+                display: none; /* 移动端隐藏总时长以适配进度条 */
+            }
+            .player-right-tools {
+                gap: 4px;
+            }
+            .player-right-tools input[type="range"],
+            .player-right-tools .fa-volume-up {
+                display: none; /* 移动端屏蔽滑动音量条，使用手机按键调节音量 */
+            }
         }
     </style>
 </head>
