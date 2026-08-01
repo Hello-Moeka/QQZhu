@@ -11,25 +11,25 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         /* ----------------------------------------------------
-           Apple (iOS / visionOS / macOS Sequoia) 核心设计 Token
+           Apple 最高透明度水晶级档位 (Crystal-Clear Translucency Spec)
            ---------------------------------------------------- */
         :root {
             --apple-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
-            --apple-glass-bg: rgba(255, 255, 255, 0.15);
-            --apple-glass-card-bg: rgba(255, 255, 255, 0.12);
-            --apple-glass-hover-bg: rgba(255, 255, 255, 0.22);
-            --apple-glass-border: rgba(255, 255, 255, 0.25);
-            --apple-glass-top-border: rgba(255, 255, 255, 0.50);
-            --apple-blur: blur(40px) saturate(210%);
-            --apple-card-shadow: 0 10px 30px rgba(0, 0, 0, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.45);
+            --apple-glass-bg: rgba(255, 255, 255, 0.12);
+            --apple-glass-card-bg: rgba(255, 255, 255, 0.09);
+            --apple-glass-hover-bg: rgba(255, 255, 255, 0.20);
+            --apple-glass-border: rgba(255, 255, 255, 0.30);
+            --apple-glass-top-border: rgba(255, 255, 255, 0.70);
+            --apple-blur: blur(50px) saturate(240%);
+            --apple-card-shadow: 0 16px 40px rgba(0, 0, 0, 0.14), inset 0 1.5px 1px rgba(255, 255, 255, 0.6);
+            --apple-cyan: #00f0ff;
             --apple-blue: #007aff;
             --apple-pink: #ff2d55;
-            --apple-purple: #af52de;
-            --apple-indigo: #5856d6;
-            --apple-system-gradient: linear-gradient(135deg, #007aff 0%, #5856d6 100%);
+            --apple-purple: #bf5af2;
             --apple-pink-gradient: linear-gradient(135deg, #ff2d55 0%, #ff375f 100%);
             --text-main: #ffffff;
-            --text-sub: rgba(255, 255, 255, 0.75);
+            --text-sub: rgba(255, 255, 255, 0.85);
+            --text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
         }
 
         * {
@@ -42,8 +42,8 @@
             font-family: var(--apple-font);
             margin: 0;
             padding: 0;
-            /* 保持用户的自定义背景图，叠加 Apple 极轻微的微光流晕遮罩 */
-            background-image: linear-gradient(135deg, rgba(10, 12, 20, 0.55) 0%, rgba(20, 22, 36, 0.35) 50%, rgba(8, 10, 18, 0.60) 100%), url('{{ settings.background_url }}');
+            /* 水晶最高透明度：极薄淡雅遮罩，让用户的原图色彩100%通透璀璨折射 */
+            background-image: linear-gradient(135deg, rgba(10, 12, 24, 0.22) 0%, rgba(20, 24, 45, 0.12) 50%, rgba(8, 10, 20, 0.25) 100%), url('{{ settings.background_url }}');
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
@@ -58,18 +58,18 @@
         }
 
         /* ----------------------------------------------------
-           Apple 极简浮空 Glass 导航栏
+           Apple 水晶极简浮空 Glass 导航栏
            ---------------------------------------------------- */
         .navbar {
             width: fit-content;
             margin-top: 16px;
-            background: rgba(255, 255, 255, 0.16);
+            background: rgba(255, 255, 255, 0.12);
             backdrop-filter: var(--apple-blur);
             -webkit-backdrop-filter: var(--apple-blur);
             border: 1px solid var(--apple-glass-border);
             border-top: 1px solid var(--apple-glass-top-border);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.5);
-            padding: 6px 10px;
+            box-shadow: 0 10px 35px rgba(0, 0, 0, 0.15), inset 0 1.5px 1px rgba(255, 255, 255, 0.65);
+            padding: 6px 12px;
             border-radius: 9999px;
             display: flex;
             justify-content: center;
@@ -86,6 +86,7 @@
             font-weight: 500;
             padding: 8px 18px;
             border-radius: 9999px;
+            text-shadow: var(--text-shadow);
             transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
             display: inline-flex;
             align-items: center;
@@ -95,11 +96,11 @@
         .navbar a.active {
             background: rgba(255, 255, 255, 0.25);
             color: #ffffff;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12), inset 0 1.5px 1px rgba(255, 255, 255, 0.7);
         }
 
         /* ----------------------------------------------------
-           Apple 风格歌手介绍卡片 (visionOS Specular Panel)
+           Apple 高透水晶歌手介绍面板 (Crystal Specular Panel)
            ---------------------------------------------------- */
         .intro {
             background: var(--apple-glass-bg);
@@ -119,7 +120,7 @@
             transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
         .intro:hover {
-            box-shadow: 0 16px 45px rgba(0, 0, 0, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.6);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2), inset 0 1.5px 1px rgba(255, 255, 255, 0.8);
         }
         .intro img {
             width: 120px;
@@ -127,12 +128,12 @@
             border-radius: 50%;
             object-fit: cover;
             flex-shrink: 0;
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+            border: 2.5px solid rgba(255, 255, 255, 0.65);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
             transition: transform 0.3s ease;
         }
         .intro img:hover {
-            transform: scale(1.03);
+            transform: scale(1.04);
         }
         .intro .intro-text {
             flex: 1;
@@ -143,6 +144,7 @@
             font-weight: 700;
             margin: 0 0 6px 0;
             letter-spacing: -0.02em;
+            text-shadow: var(--text-shadow);
         }
         .intro h2 a {
             color: #ffffff;
@@ -150,7 +152,7 @@
             transition: color 0.2s;
         }
         .intro h2 a:hover {
-            color: var(--apple-blue);
+            color: var(--apple-cyan);
         }
         .intro p {
             font-size: 15px;
@@ -158,10 +160,11 @@
             margin: 0;
             color: var(--text-sub);
             font-weight: 400;
+            text-shadow: var(--text-shadow);
         }
 
         /* ----------------------------------------------------
-           Apple 风格歌曲列表面板与 Segmented Filter Bar
+           Apple 高透歌曲列表面板与 Segmented Filter Bar
            ---------------------------------------------------- */
         .song-list {
             background: var(--apple-glass-bg);
@@ -188,21 +191,22 @@
         .filter-bar input,
         .filter-bar select {
             padding: 10px 16px;
-            border: 1px solid rgba(255, 255, 255, 0.22);
-            border-top: 1px solid rgba(255, 255, 255, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.30);
+            border-top: 1px solid rgba(255, 255, 255, 0.65);
             border-radius: 9999px;
             font-size: 14px;
             font-family: var(--apple-font);
             flex: 1;
             min-width: 170px;
-            background: rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.12);
             backdrop-filter: blur(20px);
             color: #ffffff;
             outline: none;
+            text-shadow: var(--text-shadow);
             transition: all 0.25s ease;
         }
         .filter-bar input::placeholder {
-            color: rgba(255, 255, 255, 0.55);
+            color: rgba(255, 255, 255, 0.65);
         }
         .filter-bar select option {
             background: #1c1c24;
@@ -210,30 +214,31 @@
         }
         .filter-bar input:focus,
         .filter-bar select:focus {
-            border-color: var(--apple-blue);
-            background: rgba(255, 255, 255, 0.25);
-            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.3);
+            border-color: var(--apple-cyan);
+            background: rgba(255, 255, 255, 0.22);
+            box-shadow: 0 0 0 3.5px rgba(0, 240, 255, 0.35);
         }
         .filter-bar button {
             padding: 10px 20px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-top: 1px solid rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            border-top: 1px solid rgba(255, 255, 255, 0.75);
             border-radius: 9999px;
-            background: rgba(255, 255, 255, 0.22);
+            background: rgba(255, 255, 255, 0.18);
             backdrop-filter: blur(20px);
             color: white;
             font-size: 14px;
             font-weight: 600;
             font-family: var(--apple-font);
             cursor: pointer;
+            text-shadow: var(--text-shadow);
             transition: all 0.25s ease;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1), inset 0 1.5px 1px rgba(255, 255, 255, 0.6);
             display: inline-flex;
             align-items: center;
             gap: 6px;
         }
         .filter-bar button:hover {
-            background: rgba(255, 255, 255, 0.32);
+            background: rgba(255, 255, 255, 0.30);
             transform: translateY(-1px);
         }
 
@@ -250,14 +255,15 @@
             align-items: center;
             gap: 8px;
             letter-spacing: -0.01em;
+            text-shadow: var(--text-shadow);
         }
         .category h3 i {
-            color: var(--apple-blue);
+            color: var(--apple-cyan);
             font-size: 17px;
         }
 
         /* ----------------------------------------------------
-           Apple 卡片网格 (Apple Music Style Cards)
+           Apple 高透水晶卡片网格 (Crystal Music Cards)
            ---------------------------------------------------- */
         .song-grid {
             display: grid;
@@ -272,7 +278,7 @@
             border-top: 1px solid var(--apple-glass-top-border);
             border-radius: 20px;
             padding: 16px;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1.5px 1px rgba(255, 255, 255, 0.55);
             transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
             cursor: pointer;
             display: flex;
@@ -280,10 +286,10 @@
             justify-content: space-between;
         }
         .song-card:hover {
-            transform: translateY(-4px);
+            transform: translateY(-5px);
             background: var(--apple-glass-hover-bg);
-            border-color: rgba(255, 255, 255, 0.4);
-            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            border-color: rgba(255, 255, 255, 0.5);
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.22), inset 0 1.5px 1px rgba(255, 255, 255, 0.8);
         }
         .song-card h4 {
             font-size: 16px;
@@ -293,6 +299,7 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            text-shadow: var(--text-shadow);
         }
         .song-card p {
             font-size: 13px;
@@ -301,6 +308,7 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            text-shadow: var(--text-shadow);
         }
         .song-actions {
             margin-top: 12px;
@@ -314,18 +322,19 @@
             text-decoration: none;
             font-size: 13px;
             font-weight: 500;
-            background: rgba(255, 255, 255, 0.18);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-top: 1px solid rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.16);
+            border: 1px solid rgba(255, 255, 255, 0.32);
+            border-top: 1px solid rgba(255, 255, 255, 0.65);
             padding: 5px 12px;
             border-radius: 9999px;
+            text-shadow: var(--text-shadow);
             transition: all 0.2s ease;
             display: inline-flex;
             align-items: center;
             gap: 4px;
         }
         .song-actions a:hover {
-            background: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.30);
         }
 
         /* ----------------------------------------------------
@@ -346,12 +355,12 @@
             align-items: center;
             gap: 5px;
             vertical-align: middle;
-            box-shadow: 0 4px 14px rgba(255, 45, 85, 0.4);
+            box-shadow: 0 4px 14px rgba(255, 45, 85, 0.45);
         }
         .btn-preview:hover {
             transform: scale(1.04);
-            box-shadow: 0 6px 20px rgba(255, 45, 85, 0.6);
-            filter: brightness(1.06);
+            box-shadow: 0 6px 22px rgba(255, 45, 85, 0.65);
+            filter: brightness(1.08);
         }
         .btn-preview.loading {
             opacity: 0.7;
@@ -359,7 +368,7 @@
         }
 
         /* ----------------------------------------------------
-           Apple 列表表格 (macOS Finder Style Table)
+           Apple 高透列表表格 (macOS Finder Specular Table)
            ---------------------------------------------------- */
         .song-list-table {
             width: 100%;
@@ -372,11 +381,12 @@
             text-align: left;
         }
         .song-list-table th {
-            background: rgba(255, 255, 255, 0.14);
+            background: rgba(255, 255, 255, 0.15);
             backdrop-filter: blur(20px);
             color: #ffffff;
             font-size: 14px;
             font-weight: 600;
+            text-shadow: var(--text-shadow);
             border-top: 1px solid var(--apple-glass-top-border);
             border-bottom: 1px solid var(--apple-glass-border);
         }
@@ -390,10 +400,11 @@
             transition: all 0.2s ease;
         }
         .song-list-table tbody tr td {
-            border-top: 1px solid rgba(255, 255, 255, 0.12);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
             color: var(--text-sub);
             font-size: 14px;
+            text-shadow: var(--text-shadow);
         }
         .song-list-table tbody tr td:first-child {
             color: #ffffff;
@@ -406,7 +417,7 @@
             border-bottom-right-radius: 12px;
         }
         .song-list-table tbody tr:hover {
-            background: rgba(255, 255, 255, 0.20);
+            background: rgba(255, 255, 255, 0.22);
             transform: translateY(-1px);
         }
         .song-list-table tbody tr:hover td {
@@ -430,13 +441,13 @@
             top: -70px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(30, 30, 40, 0.85);
-            backdrop-filter: blur(30px) saturate(210%);
-            -webkit-backdrop-filter: blur(30px) saturate(210%);
+            background: rgba(25, 28, 42, 0.75);
+            backdrop-filter: blur(40px) saturate(220%);
+            -webkit-backdrop-filter: blur(40px) saturate(220%);
             color: #ffffff;
             padding: 11px 24px;
             border-radius: 9999px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.35), inset 0 1.5px 1px rgba(255, 255, 255, 0.6);
             font-size: 14px;
             font-weight: 500;
             z-index: 10000;
@@ -446,8 +457,8 @@
             transition: top 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.35s ease;
             opacity: 0;
             pointer-events: none;
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            border-top: 1px solid rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.30);
+            border-top: 1px solid rgba(255, 255, 255, 0.70);
         }
         .toast-notification.show {
             top: 25px;
@@ -459,7 +470,7 @@
         }
 
         /* ----------------------------------------------------
-           Apple Dynamic Island / Apple Music 悬浮播放器 Pod
+           Apple Dynamic Island 水晶悬浮播放器 Pod
            ---------------------------------------------------- */
         .audio-player-bar {
             position: fixed;
@@ -468,15 +479,15 @@
             transform: translateX(-50%);
             width: 90%;
             max-width: 860px;
-            background: rgba(22, 22, 30, 0.80);
-            backdrop-filter: blur(50px) saturate(220%);
-            -webkit-backdrop-filter: blur(50px) saturate(220%);
+            background: rgba(18, 20, 32, 0.60);
+            backdrop-filter: blur(60px) saturate(250%);
+            -webkit-backdrop-filter: blur(60px) saturate(250%);
             color: white;
             padding: 10px 22px;
             border-radius: 9999px;
-            border: 1px solid rgba(255, 255, 255, 0.22);
-            border-top: 1px solid rgba(255, 255, 255, 0.55);
-            box-shadow: 0 16px 45px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            border-top: 1px solid rgba(255, 255, 255, 0.75);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35), inset 0 1.5px 1px rgba(255, 255, 255, 0.6);
             display: flex;
             align-items: center;
             gap: 16px;
@@ -493,7 +504,7 @@
             height: 44px;
             border-radius: 50%;
             object-fit: cover;
-            border: 2px solid rgba(255, 255, 255, 0.5);
+            border: 2px solid rgba(255, 255, 255, 0.65);
             box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
             animation: spinCover 12s linear infinite;
             animation-play-state: paused;
@@ -519,6 +530,7 @@
             overflow: hidden;
             text-overflow: ellipsis;
             color: #ffffff;
+            text-shadow: var(--text-shadow);
         }
         .player-artist-wrap {
             display: flex;
@@ -535,11 +547,12 @@
             text-overflow: ellipsis;
             min-width: 0;
             flex: 1 1 auto;
+            text-shadow: var(--text-shadow);
         }
         .badge-preview {
-            background: rgba(255, 45, 85, 0.25);
+            background: rgba(255, 45, 85, 0.28);
             color: #ff375f;
-            border: 1px solid rgba(255, 45, 85, 0.45);
+            border: 1px solid rgba(255, 45, 85, 0.55);
             border-radius: 9999px;
             padding: 1px 7px;
             font-size: 10px;
@@ -581,6 +594,7 @@
             flex: 1;
             font-size: 12px;
             color: var(--text-sub);
+            text-shadow: var(--text-shadow);
         }
         .player-progress-container input[type="range"],
         .player-right-tools input[type="range"] {
@@ -602,7 +616,7 @@
         .player-btn-icon {
             background: none;
             border: none;
-            color: rgba(255, 255, 255, 0.6);
+            color: rgba(255, 255, 255, 0.7);
             font-size: 15px;
             cursor: pointer;
             padding: 4px;
@@ -618,11 +632,11 @@
             margin-top: auto;
             padding: 20px 0;
             text-align: center;
-            background: rgba(10, 12, 20, 0.6);
+            background: rgba(10, 12, 20, 0.45);
             backdrop-filter: blur(20px);
             color: var(--text-sub);
             font-size: 13px;
-            border-top: 1px solid rgba(255, 255, 255, 0.12);
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
         }
         .footer a {
             color: #ffffff;
@@ -668,7 +682,7 @@
                 padding: 12px;
                 background: rgba(255, 255, 255, 0.10);
                 border-radius: 16px;
-                border: 1px solid rgba(255, 255, 255, 0.2);
+                border: 1px solid rgba(255, 255, 255, 0.25);
             }
             .song-list-table td {
                 display: flex;
@@ -871,7 +885,7 @@
             </div>
         </div>
         <div class="player-right-tools">
-            <i class="fas fa-volume-up" style="color: rgba(255, 255, 255, 0.6);"></i>
+            <i class="fas fa-volume-up" style="color: rgba(255, 255, 255, 0.7);"></i>
             <input type="range" id="player-volume-bar" value="80" min="0" max="100">
             <button id="player-btn-close" class="player-btn-icon" title="关闭"><i class="fas fa-times"></i></button>
         </div>
