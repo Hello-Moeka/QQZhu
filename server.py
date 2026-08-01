@@ -1002,7 +1002,14 @@ async def netease_preview_handler(request):
         if not songs:
             return web.json_response({"ok": False, "message": "网易云未找到匹配歌曲"})
 
+        # 挑选最佳匹配歌曲：优先匹配歌名一致的项
         target_song = songs[0]
+        name_clean = name.strip().lower()
+        for s in songs:
+            if s.get("name", "").strip().lower() == name_clean:
+                target_song = s
+                break
+
         song_id = target_song.get("id")
         song_name = target_song.get("name", name)
         artists_list = [ar.get("name") for ar in target_song.get("artists", []) if ar.get("name")]
