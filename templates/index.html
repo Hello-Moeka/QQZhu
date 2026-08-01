@@ -221,6 +221,164 @@
         .song-list.hide-cards .category {
             display: none;
         }
+        /* 试听按钮样式 */
+        .btn-preview {
+            background-color: #ff4757;
+            color: white;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            vertical-align: middle;
+        }
+        .btn-preview:hover {
+            background-color: #ff6b81;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(255, 71, 87, 0.4);
+        }
+        .btn-preview.loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+        .song-actions {
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        /* 底部悬浮试听播放器 */
+        .audio-player-bar {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 850px;
+            background: rgba(30, 30, 40, 0.94);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 50px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            z-index: 9999;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+        }
+        .audio-player-bar.hidden {
+            transform: translate(-50%, 150%);
+            opacity: 0;
+            pointer-events: none;
+        }
+        .player-cover-wrap img {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            animation: spinCover 12s linear infinite;
+            animation-play-state: paused;
+            display: block;
+        }
+        .player-cover-wrap.playing img {
+            animation-play-state: running;
+        }
+        @keyframes spinCover {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .player-info {
+            min-width: 120px;
+            max-width: 170px;
+            overflow: hidden;
+        }
+        .player-title {
+            font-weight: bold;
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #fff;
+        }
+        .player-artist {
+            font-size: 12px;
+            color: #aaa;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-top: 2px;
+        }
+        .player-controls {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .player-btn-main {
+            background: #ff4757;
+            border: none;
+            color: white;
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s, background-color 0.2s;
+            flex-shrink: 0;
+        }
+        .player-btn-main:hover {
+            background: #ff6b81;
+            transform: scale(1.08);
+        }
+        .player-progress-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            font-size: 12px;
+            color: #ccc;
+        }
+        .player-progress-container input[type="range"],
+        .player-right-tools input[type="range"] {
+            accent-color: #ff4757;
+            cursor: pointer;
+        }
+        .player-progress-container input[type="range"] {
+            flex: 1;
+        }
+        .player-right-tools {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+        .player-right-tools input[type="range"] {
+            width: 65px;
+        }
+        .player-btn-icon {
+            background: none;
+            border: none;
+            color: #aaa;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 4px;
+            transition: color 0.2s;
+        }
+        .player-btn-icon:hover {
+            color: #fff;
+        }
         /* 备案号样式 */
         .footer {
             width: 100%;
@@ -347,9 +505,12 @@
                     <h4>{{ song.name }}</h4>
                     <p>歌手：{{ song.artist }}</p>
                     <p>风格：{{ song.genre }}</p>
-                    {% if song.url != '-' %}
-                    <a href="{{ song.url }}" target="_blank"><i class="fas fa-play"></i> 播放</a>
-                    {% endif %}
+                    <div class="song-actions">
+                        <button class="btn-preview" data-name="{{ song.name }}" data-artist="{{ song.artist }}"><i class="fas fa-headphones"></i> 试听</button>
+                        {% if song.url != '-' %}
+                        <a href="{{ song.url }}" target="_blank"><i class="fas fa-play"></i> 播放</a>
+                        {% endif %}
+                    </div>
                 </div>
                 {% endif %}
                 {% endfor %}
@@ -376,6 +537,7 @@
                     <td data-label="语言">{{ song.language }}</td>
                     <td data-label="风格">{{ song.genre }}</td>
                     <td data-label="操作">
+                        <button class="btn-preview" data-name="{{ song.name }}" data-artist="{{ song.artist }}"><i class="fas fa-headphones"></i> 试听</button>
                         {% if song.url != '-' %}
                         <a href="{{ song.url }}" target="_blank"><i class="fas fa-play"></i> 播放</a>
                         {% endif %}
@@ -385,13 +547,31 @@
             </tbody>
         </table>
     </div>
-    <!-- 👇 这是新增的备案号代码，直接粘贴在这里 -->
-    <div class="footer">
-        <p>
-            <a href="https://beian.miit.gov.cn/" target="_blank">苏ICP备2026009705号-1</a> 
-            ｜ 苏公网安备32021402004572号
-        </p>
+    <!-- 底部悬浮试听播放器 -->
+    <div id="audio-player-bar" class="audio-player-bar hidden">
+        <audio id="audio-element"></audio>
+        <div id="player-cover-wrap" class="player-cover-wrap">
+            <img id="player-cover" src="/static/singer.jpg" alt="封面">
+        </div>
+        <div class="player-info">
+            <div id="player-title" class="player-title">歌曲名称</div>
+            <div id="player-artist" class="player-artist">歌手名称</div>
+        </div>
+        <div class="player-controls">
+            <button id="player-btn-play" class="player-btn-main"><i class="fas fa-play"></i></button>
+            <div class="player-progress-container">
+                <span id="player-time-current">00:00</span>
+                <input type="range" id="player-progress-bar" value="0" min="0" max="100" step="0.1">
+                <span id="player-time-duration">00:00</span>
+            </div>
+        </div>
+        <div class="player-right-tools">
+            <i class="fas fa-volume-up" style="color: #aaa;"></i>
+            <input type="range" id="player-volume-bar" value="80" min="0" max="100">
+            <button id="player-btn-close" class="player-btn-icon" title="关闭"><i class="fas fa-times"></i></button>
+        </div>
     </div>
+
     <script>
         // 复制歌名
         function copySongName(event) {
@@ -421,6 +601,118 @@
         // 绑定点击事件
         document.querySelectorAll('.song-card, .song-list-table tr').forEach(element => {
             element.addEventListener('click', copySongName);
+        });
+
+        // ----------------------------------------------------
+        // 试听播放器逻辑
+        // ----------------------------------------------------
+        const audioPlayerBar = document.getElementById('audio-player-bar');
+        const audioElement = document.getElementById('audio-element');
+        const playerCoverWrap = document.getElementById('player-cover-wrap');
+        const playerCover = document.getElementById('player-cover');
+        const playerTitle = document.getElementById('player-title');
+        const playerArtist = document.getElementById('player-artist');
+        const playerBtnPlay = document.getElementById('player-btn-play');
+        const playerProgressBar = document.getElementById('player-progress-bar');
+        const playerTimeCurrent = document.getElementById('player-time-current');
+        const playerTimeDuration = document.getElementById('player-time-duration');
+        const playerVolumeBar = document.getElementById('player-volume-bar');
+        const playerBtnClose = document.getElementById('player-btn-close');
+
+        function formatTime(seconds) {
+            if (isNaN(seconds) || seconds < 0) return '00:00';
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
+        }
+
+        // 绑定所有试听按钮
+        document.querySelectorAll('.btn-preview').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation(); // 阻止触发复制歌名
+                const songName = this.getAttribute('data-name');
+                const songArtist = this.getAttribute('data-artist') || '';
+                
+                const originalHtml = this.innerHTML;
+                this.classList.add('loading');
+                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 搜索中';
+
+                fetch(`/api/netease-preview?name=${encodeURIComponent(songName)}&artist=${encodeURIComponent(songArtist)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        this.classList.remove('loading');
+                        this.innerHTML = originalHtml;
+
+                        if (data.ok) {
+                            playerTitle.textContent = data.name;
+                            playerArtist.textContent = data.artist;
+                            playerCover.src = data.picUrl || '/static/singer.jpg';
+                            
+                            audioElement.src = data.audio_url;
+                            audioPlayerBar.classList.remove('hidden');
+                            audioElement.play().catch(err => {
+                                console.warn("播放受阻/版权限制:", err);
+                                alert("该歌曲在网易云暂无试听资源或受版权保护。");
+                            });
+                        } else {
+                            alert(data.message || '未找到匹配的试听音频');
+                        }
+                    })
+                    .catch(err => {
+                        this.classList.remove('loading');
+                        this.innerHTML = originalHtml;
+                        alert('网络异常，获取试听失败');
+                    });
+            });
+        });
+
+        // 播放器按钮交互
+        playerBtnPlay.addEventListener('click', () => {
+            if (audioElement.paused) {
+                audioElement.play();
+            } else {
+                audioElement.pause();
+            }
+        });
+
+        audioElement.addEventListener('play', () => {
+            playerBtnPlay.innerHTML = '<i class="fas fa-pause"></i>';
+            playerCoverWrap.classList.add('playing');
+        });
+
+        audioElement.addEventListener('pause', () => {
+            playerBtnPlay.innerHTML = '<i class="fas fa-play"></i>';
+            playerCoverWrap.classList.remove('playing');
+        });
+
+        audioElement.addEventListener('timeupdate', () => {
+            if (audioElement.duration) {
+                const pct = (audioElement.currentTime / audioElement.duration) * 100;
+                playerProgressBar.value = pct;
+                playerTimeCurrent.textContent = formatTime(audioElement.currentTime);
+                playerTimeDuration.textContent = formatTime(audioElement.duration);
+            }
+        });
+
+        audioElement.addEventListener('error', () => {
+            alert('试听音频播放失败，可能因网易云版权保护或下架限制。');
+            playerBtnPlay.innerHTML = '<i class="fas fa-play"></i>';
+            playerCoverWrap.classList.remove('playing');
+        });
+
+        playerProgressBar.addEventListener('input', function() {
+            if (audioElement.duration) {
+                audioElement.currentTime = (this.value / 100) * audioElement.duration;
+            }
+        });
+
+        playerVolumeBar.addEventListener('input', function() {
+            audioElement.volume = this.value / 100;
+        });
+
+        playerBtnClose.addEventListener('click', () => {
+            audioElement.pause();
+            audioPlayerBar.classList.add('hidden');
         });
 
         // 过滤歌曲

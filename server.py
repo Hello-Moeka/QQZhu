@@ -964,6 +964,66 @@ async def index(request):
     )
 
 
+async def netease_preview_handler(request):
+    """根据歌名和歌手匹配网易云音乐并返回音频试听链接与元数据。"""
+    name = request.query.get("name", "").strip()
+    artist = request.query.get("artist", "").strip()
+    if not name:
+        return web.json_response({"ok": False, "message": "歌名不能为空"})
+
+    keywords = f"{name} {artist}".strip()
+    url = "https://music.163.com/api/search/get/web"
+    params = {"s": keywords, "type": "1", "offset": "0", "limit": "5"}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://music.163.com/",
+    }
+
+    try:
+        timeout = aiohttp.ClientTimeout(total=6)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url, params=params, headers=headers) as resp:
+                if resp.status != 200:
+                    return web.json_response({"ok": False, "message": f"网易云 API 请求失败 ({resp.status})"})
+                data = await resp.json(content_type=None)
+
+        result = data.get("result", {}) or {}
+        songs = result.get("songs", []) or []
+
+        # 如果“歌名+歌手”没匹配到结果且有歌手参数，退一步只按歌名搜索
+        if not songs and artist:
+            params["s"] = name
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, params=params, headers=headers) as resp:
+                    if resp.status == 200:
+                        data = await resp.json(content_type=None)
+                        songs = (data.get("result", {}) or {}).get("songs", []) or []
+
+        if not songs:
+            return web.json_response({"ok": False, "message": "网易云未找到匹配歌曲"})
+
+        target_song = songs[0]
+        song_id = target_song.get("id")
+        song_name = target_song.get("name", name)
+        artists_list = [ar.get("name") for ar in target_song.get("artists", []) if ar.get("name")]
+        artist_name = " / ".join(artists_list) if artists_list else artist
+        album = target_song.get("album", {}) or {}
+        pic_url = album.get("picUrl", "")
+
+        audio_url = f"https://music.163.com/song/media/outer/url?id={song_id}.mp3"
+
+        return web.json_response({
+            "ok": True,
+            "song_id": song_id,
+            "audio_url": audio_url,
+            "name": song_name,
+            "artist": artist_name,
+            "picUrl": pic_url
+        })
+    except Exception as exc:
+        return web.json_response({"ok": False, "message": f"获取试听失败: {exc}"})
+
+
 async def proxy_image(request):
     image_url = request.query.get("url")
     if not image_url:
@@ -1595,6 +1655,7 @@ async def init_app():
     # 静态文件 & 公共路由
     app.router.add_static("/static/", path="static", name="static")
     app.router.add_get("/proxy-image", proxy_image)
+    app.router.add_get("/api/netease-preview", netease_preview_handler)
     app.router.add_get("/healthz", lambda request: web.Response(text="ok"))
 
     # 租户前台
