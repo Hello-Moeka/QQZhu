@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         /* ----------------------------------------------------
-           Apple VisionOS / macOS Sequoia 通透液态玻璃 Token
+           Apple VisionOS / macOS Sequoia 超轻量通透液态玻璃 Token
            ---------------------------------------------------- */
         :root {
             --apple-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
@@ -26,8 +26,8 @@
             --apple-glass-top-border: rgba(255, 255, 255, 0.85);
             --apple-glass-left-border: rgba(255, 255, 255, 0.55);
             
-            /* 适度降低高斯模糊强度，背景纹理细节更清析清爽 */
-            --apple-blur: blur(20px) saturate(180%);
+            /* 超轻量高斯模糊强度 8px，极大程度保留背景图画面通透度 */
+            --apple-blur: blur(8px) saturate(160%);
             --apple-card-shadow: 0 16px 45px rgba(0, 0, 0, 0.22), inset 0 1.5px 1px rgba(255, 255, 255, 0.70), inset 0 -1px 1px rgba(0, 0, 0, 0.15);
             
             /* 纯色 Accent (无渐变) */
@@ -237,7 +237,7 @@
             font-size: 14px;
             font-family: var(--apple-font);
             background: rgba(255, 255, 255, 0.12);
-            backdrop-filter: blur(12px);
+            backdrop-filter: blur(6px);
             color: #ffffff;
             outline: none;
             text-shadow: var(--text-shadow);
@@ -435,7 +435,7 @@
 
         .song-list-table tbody tr {
             background: rgba(255, 255, 255, 0.08);
-            backdrop-filter: blur(16px);
+            backdrop-filter: blur(8px);
             cursor: pointer;
             transition: all 0.2s ease;
         }
@@ -482,8 +482,8 @@
             left: 50%;
             transform: translateX(-50%);
             background: rgba(20, 24, 40, 0.82);
-            backdrop-filter: blur(24px) saturate(200%);
-            -webkit-backdrop-filter: blur(24px) saturate(200%);
+            backdrop-filter: blur(16px) saturate(180%);
+            -webkit-backdrop-filter: blur(16px) saturate(180%);
             color: #ffffff;
             padding: 12px 26px;
             border-radius: 9999px;
@@ -520,8 +520,8 @@
             width: 90%;
             max-width: 860px;
             background: rgba(18, 20, 34, 0.65);
-            backdrop-filter: blur(24px) saturate(200%);
-            -webkit-backdrop-filter: blur(24px) saturate(200%);
+            backdrop-filter: blur(16px) saturate(180%);
+            -webkit-backdrop-filter: blur(16px) saturate(180%);
             color: white;
             padding: 10px 22px;
             border-radius: 9999px;
