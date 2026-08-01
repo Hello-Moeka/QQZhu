@@ -26,15 +26,13 @@
             --apple-glass-top-border: rgba(255, 255, 255, 0.85);
             --apple-glass-left-border: rgba(255, 255, 255, 0.55);
             
-            /* 超轻量高斯模糊强度 8px，极大程度保留背景图画面通透度 */
+            /* 超轻量高斯模糊强度 8px */
             --apple-blur: blur(8px) saturate(160%);
             --apple-card-shadow: 0 16px 45px rgba(0, 0, 0, 0.22), inset 0 1.5px 1px rgba(255, 255, 255, 0.70), inset 0 -1px 1px rgba(0, 0, 0, 0.15);
             
-            /* 纯色 Accent (无渐变) */
+            /* 纯色 Accent (和谐不突兀) */
             --apple-blue: #007aff;
             --apple-blue-hover: #0062cc;
-            --apple-pink: #ff2d55;
-            --apple-pink-hover: #e02447;
             --apple-green: #34c759;
 
             --text-main: #ffffff;
@@ -52,7 +50,7 @@
             font-family: var(--apple-font);
             margin: 0;
             padding: 0;
-            /* 水晶最高通透度：极薄流光暗晕，保证背景图全貌通透折射 */
+            /* 水晶最高通透度：极薄流光暗晕 */
             background-color: #0b0d17;
             background-image: linear-gradient(135deg, rgba(12, 14, 26, 0.20) 0%, rgba(22, 26, 44, 0.10) 50%, rgba(10, 12, 22, 0.22) 100%), url('{{ settings.background_url }}');
             background-size: cover;
@@ -304,7 +302,7 @@
         }
 
         /* ----------------------------------------------------
-           Apple 晶莹剔透水光卡片网格 (Crystal Music Cards)
+           Apple 晶莹剔透水光卡片网格
            ---------------------------------------------------- */
         .song-grid {
             display: grid;
@@ -365,9 +363,9 @@
             text-decoration: none;
             font-size: 13px;
             font-weight: 500;
-            background: rgba(255, 255, 255, 0.16);
-            border: 1px solid rgba(255, 255, 255, 0.35);
-            border-top: 1.5px solid rgba(255, 255, 255, 0.70);
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.30);
+            border-top: 1.5px solid rgba(255, 255, 255, 0.65);
             padding: 5px 13px;
             border-radius: 9999px;
             text-shadow: var(--text-shadow);
@@ -377,17 +375,20 @@
             gap: 4px;
         }
         .song-actions a:hover {
-            background: rgba(255, 255, 255, 0.30);
+            background: rgba(255, 255, 255, 0.28);
         }
 
         /* ----------------------------------------------------
-           试听按钮 (Apple 纯红粉色 - 无渐变)
+           试听按钮 (和谐的高透毛玻璃胶囊 - 极简高雅)
            ---------------------------------------------------- */
         .btn-preview {
-            background: var(--apple-pink);
-            color: white;
-            border: none;
-            padding: 6px 14px;
+            background: rgba(255, 255, 255, 0.16);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            border-top: 1.5px solid rgba(255, 255, 255, 0.75);
+            padding: 5px 14px;
             border-radius: 9999px;
             font-size: 13px;
             font-weight: 600;
@@ -396,14 +397,19 @@
             transition: all 0.2s ease;
             display: inline-flex;
             align-items: center;
-            gap: 5px;
+            gap: 6px;
             vertical-align: middle;
-            box-shadow: 0 4px 14px rgba(255, 45, 85, 0.45);
+            text-shadow: var(--text-shadow);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .btn-preview i {
+            color: var(--apple-blue);
         }
         .btn-preview:hover {
-            background: var(--apple-pink-hover);
+            background: rgba(255, 255, 255, 0.28);
+            border-color: rgba(255, 255, 255, 0.55);
             transform: scale(1.04);
-            box-shadow: 0 6px 20px rgba(255, 45, 85, 0.6);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
         }
         .btn-preview.loading {
             opacity: 0.7;
@@ -591,9 +597,9 @@
             text-shadow: var(--text-shadow);
         }
         .badge-preview {
-            background: rgba(255, 45, 85, 0.30);
-            color: #ff5c7c;
-            border: 1px solid rgba(255, 45, 85, 0.6);
+            background: rgba(0, 122, 255, 0.20);
+            color: #74b9ff;
+            border: 1px solid rgba(0, 122, 255, 0.45);
             border-radius: 9999px;
             padding: 1px 7px;
             font-size: 10px;
@@ -609,7 +615,7 @@
             gap: 12px;
         }
         .player-btn-main {
-            background: var(--apple-pink);
+            background: var(--apple-blue);
             border: none;
             color: white;
             width: 38px;
@@ -622,10 +628,10 @@
             justify-content: center;
             transition: transform 0.2s, background-color 0.2s;
             flex-shrink: 0;
-            box-shadow: 0 4px 14px rgba(255, 45, 85, 0.45);
+            box-shadow: 0 4px 14px rgba(0, 122, 255, 0.4);
         }
         .player-btn-main:hover {
-            background: var(--apple-pink-hover);
+            background: var(--apple-blue-hover);
             transform: scale(1.06);
         }
         .player-progress-container {
@@ -639,7 +645,7 @@
         }
         .player-progress-container input[type="range"],
         .player-right-tools input[type="range"] {
-            accent-color: var(--apple-pink);
+            accent-color: var(--apple-blue);
             cursor: pointer;
         }
         .player-progress-container input[type="range"] {
