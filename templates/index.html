@@ -399,6 +399,16 @@
             transform: scale(1.06);
             box-shadow: 0 3px 10px rgba(255, 71, 87, 0.5);
         }
+        .badge-preview {
+            background: rgba(255, 71, 87, 0.25);
+            color: #ff6b81;
+            border: 1px solid rgba(255, 71, 87, 0.4);
+            border-radius: 10px;
+            padding: 1px 6px;
+            font-size: 10px;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
         /* 备案号样式 */
         .footer {
             width: 100%;
@@ -642,6 +652,8 @@
         const playerBtnClose = document.getElementById('player-btn-close');
 
         let currentChorusStart = 0;
+        let playStartOffset = 0;
+        const MAX_PREVIEW_DURATION = 30; // 限制最多播放30秒
 
         function formatTime(seconds) {
             if (isNaN(seconds) || seconds < 0) return '00:00';
@@ -653,6 +665,7 @@
         playerBtnChorus.addEventListener('click', () => {
             if (currentChorusStart > 0 && audioElement.duration) {
                 audioElement.currentTime = currentChorusStart;
+                playStartOffset = currentChorusStart;
                 if (audioElement.paused) audioElement.play();
             }
         });
@@ -676,15 +689,17 @@
 
                         if (data.ok) {
                             playerTitle.textContent = data.name;
-                            playerArtist.textContent = data.artist;
+                            playerArtist.innerHTML = `${data.artist} <span class="badge-preview">30s 试听</span>`;
                             playerCover.src = data.picUrl || '/static/singer.jpg';
                             
                             if (data.chorus_start && data.chorus_start > 0) {
                                 currentChorusStart = data.chorus_start;
+                                playStartOffset = currentChorusStart;
                                 playerBtnChorus.style.display = 'inline-flex';
                                 playerBtnChorus.innerHTML = `<i class="fas fa-bolt"></i> ⚡ 高潮 (${formatTime(currentChorusStart)})`;
                             } else {
                                 currentChorusStart = 0;
+                                playStartOffset = 0;
                                 playerBtnChorus.style.display = 'none';
                             }
 
@@ -732,9 +747,22 @@
 
         audioElement.addEventListener('timeupdate', () => {
             if (audioElement.duration) {
-                const pct = (audioElement.currentTime / audioElement.duration) * 100;
+                const currentTime = audioElement.currentTime;
+                const playedTime = currentTime - playStartOffset;
+                
+                // 30 秒试听上限限制
+                if (playedTime >= MAX_PREVIEW_DURATION || currentTime >= (playStartOffset + MAX_PREVIEW_DURATION)) {
+                    audioElement.pause();
+                    audioElement.currentTime = playStartOffset; // 重置回试听起始位置
+                    playerBtnPlay.innerHTML = '<i class="fas fa-play"></i>';
+                    playerCoverWrap.classList.remove('playing');
+                    alert('30秒试听已结束，快去直播间点歌吧~');
+                    return;
+                }
+
+                const pct = (currentTime / audioElement.duration) * 100;
                 playerProgressBar.value = pct;
-                playerTimeCurrent.textContent = formatTime(audioElement.currentTime);
+                playerTimeCurrent.textContent = formatTime(currentTime);
                 playerTimeDuration.textContent = formatTime(audioElement.duration);
             }
         });
@@ -747,7 +775,9 @@
 
         playerProgressBar.addEventListener('input', function() {
             if (audioElement.duration) {
-                audioElement.currentTime = (this.value / 100) * audioElement.duration;
+                const seekTime = (this.value / 100) * audioElement.duration;
+                audioElement.currentTime = seekTime;
+                playStartOffset = seekTime; // 拖动进度条后重置 30 秒倒计时起点
             }
         });
 
