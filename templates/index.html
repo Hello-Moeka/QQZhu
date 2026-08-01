@@ -26,25 +26,22 @@
             --apple-glass-top-border: rgba(255, 255, 255, 0.85);
             --apple-glass-left-border: rgba(255, 255, 255, 0.55);
             
-            /* Apple 系统模糊与高饱和折射参数 */
-            --apple-blur: blur(32px) saturate(210%);
+            /* Apple 系统模糊与高饱和折射参数 (仅应用于父级主容器，避免海量子卡片重复渲染) */
+            --apple-blur: blur(24px) saturate(190%);
             --apple-card-shadow: 0 16px 45px rgba(0, 0, 0, 0.25), 
                                 inset 0 1.5px 1px rgba(255, 255, 255, 0.70), 
                                 inset 0 -1.5px 1px rgba(0, 0, 0, 0.12);
             
-            /* Apple 官方纯色 Accent (HIG 无渐变规范) */
+            /* Apple 纯色 Accent */
             --apple-blue: #007aff;
             --apple-blue-hover: #0062cc;
-            --apple-pink: #ff2d55;
-            --apple-pink-hover: #e02447;
             --apple-green: #34c759;
 
             --text-main: #ffffff;
             --text-sub: rgba(255, 255, 255, 0.90);
-            --text-muted: rgba(255, 255, 255, 0.65);
             --text-shadow: 0 2px 8px rgba(0, 0, 0, 0.85);
 
-            /* Apple 弹力曲线 (System Spring Physics Easing) */
+            /* Apple 弹力曲线 */
             --apple-ease: cubic-bezier(0.16, 1, 0.3, 1);
             --apple-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
         }
@@ -59,12 +56,6 @@
             font-family: var(--apple-font);
             margin: 0;
             padding: 0;
-            background-color: #080a14;
-            background-image: linear-gradient(135deg, rgba(10, 12, 24, 0.22) 0%, rgba(20, 24, 42, 0.12) 50%, rgba(8, 10, 20, 0.25) 100%), url('{{ settings.background_url }}');
-            background-size: cover;
-            background-position: center;
-            background-attachment: fixed;
-            background-repeat: no-repeat;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
@@ -72,10 +63,29 @@
             justify-content: flex-start;
             color: var(--text-main);
             letter-spacing: -0.015em;
+            background-color: #080a14;
+        }
+
+        /* GPU 独立定速背景图层 (替代高耗能的 background-attachment: fixed，解决滚动卡顿) */
+        #bg-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #080a14;
+            background-image: linear-gradient(135deg, rgba(10, 12, 24, 0.22) 0%, rgba(20, 24, 42, 0.12) 50%, rgba(8, 10, 20, 0.25) 100%), url('{{ settings.background_url }}');
+            background-size: cover;
+            background-position: center;
+            z-index: -1;
+            pointer-events: none;
+            will-change: transform;
         }
 
         /* ----------------------------------------------------
-           Apple VisionOS 鼠标随动液态光影 shader (防文字闪烁 GPU 硬解)
+           Apple VisionOS 鼠标随动液态光影 shader
            ---------------------------------------------------- */
         .song-card,
         .intro {
@@ -84,11 +94,10 @@
             transform-style: preserve-3d;
             backface-visibility: hidden;
             -webkit-backface-visibility: hidden;
-            will-change: transform, box-shadow;
-            transition: transform 0.4s var(--apple-ease),
-                        box-shadow 0.4s var(--apple-ease),
-                        background 0.4s var(--apple-ease),
-                        border-color 0.4s var(--apple-ease);
+            will-change: transform;
+            transition: transform 0.3s var(--apple-ease),
+                        box-shadow 0.3s var(--apple-ease),
+                        background 0.3s var(--apple-ease);
         }
 
         /* 锁死 GPU 图层，防止字体在 3D 转换时重绘闪烁 */
@@ -100,24 +109,23 @@
             transform: translateZ(1px);
             backface-visibility: hidden;
             -webkit-backface-visibility: hidden;
-            will-change: transform;
         }
 
-        /* 随鼠标移动的平滑液态面高光 (Radial Liquid Surface Light) */
+        /* 随鼠标移动的平滑液态面高光 */
         .song-card::before,
         .intro::before {
             content: '';
             position: absolute;
             inset: 0;
             border-radius: inherit;
-            background: radial-gradient(500px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.06) 45%, transparent 75%);
+            background: radial-gradient(450px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.05) 45%, transparent 75%);
             opacity: 0;
-            transition: opacity 0.35s ease;
+            transition: opacity 0.3s ease;
             pointer-events: none;
             z-index: 2;
         }
 
-        /* 随鼠标位置游动的边缘高光切面 (Cursor-Tracking Specular Rim Border) */
+        /* 随鼠标位置游动的边缘高光切面 */
         .song-card::after,
         .intro::after {
             content: '';
@@ -125,20 +133,20 @@
             inset: -1.5px;
             border-radius: inherit;
             padding: 1.5px;
-            background: radial-gradient(320px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.45) 45%, rgba(255, 255, 255, 0.15) 100%);
+            background: radial-gradient(300px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.40) 45%, rgba(255, 255, 255, 0.15) 100%);
             -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
             -webkit-mask-composite: xor;
             mask-composite: exclude;
             opacity: 0;
-            transition: opacity 0.35s ease;
+            transition: opacity 0.3s ease;
             pointer-events: none;
             z-index: 3;
         }
 
-        .song-card:hover::before,
-        .intro:hover::before,
-        .song-card:hover::after,
-        .intro:hover::after {
+        .song-card.hovering::before,
+        .intro.hovering::before,
+        .song-card.hovering::after,
+        .intro.hovering::after {
             opacity: 1;
         }
 
@@ -218,7 +226,7 @@
             align-items: flex-start;
             gap: 24px;
         }
-        .intro:hover {
+        .intro.hovering {
             transform: perspective(1000px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) translateY(-3px);
             box-shadow: 0 22px 55px rgba(0, 0, 0, 0.28), inset 0 1.5px 1px rgba(255, 255, 255, 0.95);
         }
@@ -317,7 +325,6 @@
             font-size: 14px;
             font-family: var(--apple-font);
             background: rgba(255, 255, 255, 0.12);
-            backdrop-filter: blur(12px);
             color: #ffffff;
             outline: none;
             text-shadow: var(--text-shadow);
@@ -387,7 +394,7 @@
         }
 
         /* ----------------------------------------------------
-           Apple 晶莹剔透水光卡片网格
+           Apple 高性能水光卡片网格 (移除海量卡片重复 backdrop-filter，共享父容器玻璃图层)
            ---------------------------------------------------- */
         .song-grid {
             display: grid;
@@ -396,8 +403,6 @@
         }
         .song-card {
             background: var(--apple-glass-card-bg);
-            backdrop-filter: var(--apple-blur);
-            -webkit-backdrop-filter: var(--apple-blur);
             border: 1px solid var(--apple-glass-border);
             border-top: 1.5px solid var(--apple-glass-top-border);
             border-left: 1.5px solid var(--apple-glass-left-border);
@@ -409,7 +414,7 @@
             flex-direction: column;
             justify-content: space-between;
         }
-        .song-card:hover {
+        .song-card.hovering {
             transform: perspective(1000px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) translateY(-5px) scale(1.018);
             background: var(--apple-glass-hover-bg);
             box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28), inset 0 1.5px 1px rgba(255, 255, 255, 0.90);
@@ -469,12 +474,10 @@
         }
 
         /* ----------------------------------------------------
-           试听按钮 (Apple 极简高透毛玻璃胶囊)
+           试听按钮
            ---------------------------------------------------- */
         .btn-preview {
             background: rgba(255, 255, 255, 0.16);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
             color: #ffffff;
             border: 1px solid rgba(255, 255, 255, 0.35);
             border-top: 1.5px solid rgba(255, 255, 255, 0.75);
@@ -534,7 +537,6 @@
 
         .song-list-table tbody tr {
             background: rgba(255, 255, 255, 0.08);
-            backdrop-filter: blur(8px);
             cursor: pointer;
             transition: all 0.25s var(--apple-ease);
         }
@@ -794,7 +796,6 @@
            Apple Mobile 移动端专属适配
            ---------------------------------------------------- */
         @media (max-width: 768px) {
-            body { background-attachment: scroll; }
             .navbar { margin-top: 10px; padding: 4px 8px; gap: 4px; }
             .navbar a { font-size: 13px; padding: 6px 12px; }
             .intro {
@@ -902,6 +903,9 @@
     </style>
 </head>
 <body>
+    <!-- GPU 定速背景渲染图层 -->
+    <div id="bg-layer"></div>
+
     <!-- Apple Floating Nav Bar -->
     <div class="navbar">
         <a href="{{ settings.live_url }}"><i class="fas fa-tv"></i> 直播间</a>
@@ -1043,33 +1047,43 @@
 
     <script>
         // ----------------------------------------------------
-        // Apple VisionOS 鼠标随动液态光影与 3D 倾斜 (Apple HIG Spatial Dynamics)
+        // 高性能 JS 事件代理 (Event Delegation + rAF 节流)
+        // 避免几百个卡片注册几百个 mousemove 导致滚动卡顿
         // ----------------------------------------------------
-        document.querySelectorAll('.song-card, .intro').forEach(card => {
-            card.addEventListener('mousemove', (e) => {
-                const rect = card.getBoundingClientRect();
-                const x = (e.clientX - rect.left) / rect.width;
-                const y = (e.clientY - rect.top) / rect.height;
+        let currentHoveredCard = null;
+        let ticking = false;
 
-                const mouseXPct = (x * 100).toFixed(1) + '%';
-                const mouseYPct = (y * 100).toFixed(1) + '%';
+        document.addEventListener('mousemove', (e) => {
+            if (!ticking) {
+                requestAnimationFrame(() => {
+                    const card = e.target.closest('.song-card, .intro');
+                    if (card) {
+                        if (currentHoveredCard && currentHoveredCard !== card) {
+                            currentHoveredCard.classList.remove('hovering');
+                            currentHoveredCard.style.setProperty('--tilt-x', '0deg');
+                            currentHoveredCard.style.setProperty('--tilt-y', '0deg');
+                        }
+                        currentHoveredCard = card;
+                        card.classList.add('hovering');
 
-                // Apple 优雅 3D 倾斜
-                const tiltX = ((y - 0.5) * -5).toFixed(2) + 'deg';
-                const tiltY = ((x - 0.5) * 5).toFixed(2) + 'deg';
+                        const rect = card.getBoundingClientRect();
+                        const x = (e.clientX - rect.left) / rect.width;
+                        const y = (e.clientY - rect.top) / rect.height;
 
-                card.style.setProperty('--mouse-x', mouseXPct);
-                card.style.setProperty('--mouse-y', mouseYPct);
-                card.style.setProperty('--tilt-x', tiltX);
-                card.style.setProperty('--tilt-y', tiltY);
-            });
-
-            card.addEventListener('mouseleave', () => {
-                card.style.setProperty('--tilt-x', '0deg');
-                card.style.setProperty('--tilt-y', '0deg');
-                card.style.setProperty('--mouse-x', '50%');
-                card.style.setProperty('--mouse-y', '50%');
-            });
+                        card.style.setProperty('--mouse-x', (x * 100).toFixed(1) + '%');
+                        card.style.setProperty('--mouse-y', (y * 100).toFixed(1) + '%');
+                        card.style.setProperty('--tilt-x', ((y - 0.5) * -5).toFixed(2) + 'deg');
+                        card.style.setProperty('--tilt-y', ((x - 0.5) * 5).toFixed(2) + 'deg');
+                    } else if (currentHoveredCard) {
+                        currentHoveredCard.classList.remove('hovering');
+                        currentHoveredCard.style.setProperty('--tilt-x', '0deg');
+                        currentHoveredCard.style.setProperty('--tilt-y', '0deg');
+                        currentHoveredCard = null;
+                    }
+                    ticking = false;
+                });
+                ticking = true;
+            }
         });
 
         // 顶部浮动提示框
