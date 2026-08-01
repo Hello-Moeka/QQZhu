@@ -409,6 +409,38 @@
             margin-left: 4px;
             vertical-align: middle;
         }
+        /* 顶部浮动提示框 */
+        .toast-notification {
+            position: fixed;
+            top: -70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(30, 30, 45, 0.92);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            color: #ffffff;
+            padding: 11px 24px;
+            border-radius: 30px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+            font-size: 15px;
+            font-weight: 500;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: top 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.35s ease;
+            opacity: 0;
+            pointer-events: none;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .toast-notification.show {
+            top: 25px;
+            opacity: 1;
+        }
+        .toast-notification i {
+            color: #2ed573;
+            font-size: 17px;
+        }
         /* 备案号样式 */
         .footer {
             width: 100%;
@@ -577,6 +609,12 @@
             </tbody>
         </table>
     </div>
+    <!-- 顶部浮动提示框 -->
+    <div id="toast-notification" class="toast-notification">
+        <i class="fas fa-check-circle"></i>
+        <span id="toast-msg">已复制「点歌 歌名」，快去弹幕点歌吧~</span>
+    </div>
+
     <!-- 底部悬浮试听播放器 -->
     <div id="audio-player-bar" class="audio-player-bar hidden">
         <audio id="audio-element"></audio>
@@ -603,28 +641,42 @@
     </div>
 
     <script>
+        // 顶部浮动提示框
+        let toastTimer = null;
+        function showToast(msg) {
+            const toast = document.getElementById('toast-notification');
+            const toastMsg = document.getElementById('toast-msg');
+            toastMsg.textContent = msg;
+            toast.classList.add('show');
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2600);
+        }
+
         // 复制歌名
         function copySongName(event) {
             const songName = event.currentTarget.getAttribute('data-song-name'); // 获取歌名
+            const textToCopy = "点歌 " + songName;
 
             // 检查是否支持 navigator.clipboard
             if (navigator.clipboard) {
-                navigator.clipboard.writeText(songName)
+                navigator.clipboard.writeText(textToCopy)
                     .then(() => {
-                        alert('歌名已复制，快去点歌吧~');
+                        showToast(`已复制「${textToCopy}」，快去弹幕点歌吧~`);
                     })
                     .catch(() => {
-                        alert('复制失败，请手动复制。');
+                        showToast('复制失败，请手动复制。');
                     });
             } else {
                 // 使用备用方法（document.execCommand）
                 const tempInput = document.createElement('input');
-                tempInput.value = songName;
+                tempInput.value = textToCopy;
                 document.body.appendChild(tempInput);
                 tempInput.select();
                 document.execCommand('copy');
                 document.body.removeChild(tempInput);
-                alert('歌名已复制，快去点歌吧~');
+                showToast(`已复制「${textToCopy}」，快去弹幕点歌吧~`);
             }
         }
 
@@ -687,16 +739,16 @@
                             
                             audioElement.play().catch(err => {
                                 console.warn("播放受阻/版权限制:", err);
-                                alert("该歌曲在网易云暂无试听资源或受版权保护。");
+                                showToast("该歌曲在网易云暂无试听资源或受版权保护。");
                             });
                         } else {
-                            alert(data.message || '未找到匹配的试听音频');
+                            showToast(data.message || '未找到匹配的试听音频');
                         }
                     })
                     .catch(err => {
                         this.classList.remove('loading');
                         this.innerHTML = originalHtml;
-                        alert('网络异常，获取试听失败');
+                        showToast('网络异常，获取试听失败');
                     });
             });
         });
@@ -731,7 +783,7 @@
                     audioElement.currentTime = playStartOffset; // 重置回试听起始位置
                     playerBtnPlay.innerHTML = '<i class="fas fa-play"></i>';
                     playerCoverWrap.classList.remove('playing');
-                    alert('30秒试听已结束，快去直播间点歌吧~');
+                    showToast('30秒试听已结束，快去直播间点歌吧~');
                     return;
                 }
 
@@ -743,7 +795,7 @@
         });
 
         audioElement.addEventListener('error', () => {
-            alert('试听音频播放失败，可能因网易云版权保护或下架限制。');
+            showToast('试听音频播放失败，可能因网易云版权保护或下架限制。');
             playerBtnPlay.innerHTML = '<i class="fas fa-play"></i>';
             playerCoverWrap.classList.remove('playing');
         });
