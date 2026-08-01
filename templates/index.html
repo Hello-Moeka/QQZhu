@@ -60,7 +60,6 @@
             margin: 0;
             padding: 0;
             background-color: #080a14;
-            /* Apple 通透黑晶底图，保留用户背景图全貌与折射度 */
             background-image: linear-gradient(135deg, rgba(10, 12, 24, 0.22) 0%, rgba(20, 24, 42, 0.12) 50%, rgba(8, 10, 20, 0.25) 100%), url('{{ settings.background_url }}');
             background-size: cover;
             background-position: center;
@@ -76,17 +75,32 @@
         }
 
         /* ----------------------------------------------------
-           Apple VisionOS 鼠标随动液态光影 shader (Cursor-Tracking Liquid Specular)
+           Apple VisionOS 鼠标随动液态光影 shader (防文字闪烁 GPU 硬解)
            ---------------------------------------------------- */
         .song-card,
         .intro {
             position: relative;
             perspective: 1000px;
             transform-style: preserve-3d;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            will-change: transform, box-shadow;
             transition: transform 0.4s var(--apple-ease),
                         box-shadow 0.4s var(--apple-ease),
                         background 0.4s var(--apple-ease),
                         border-color 0.4s var(--apple-ease);
+        }
+
+        /* 锁死 GPU 图层，防止字体在 3D 转换时重绘闪烁 */
+        .song-card h4,
+        .song-card p,
+        .song-actions,
+        .intro h2,
+        .intro p {
+            transform: translateZ(1px);
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            will-change: transform;
         }
 
         /* 随鼠标移动的平滑液态面高光 (Radial Liquid Surface Light) */
