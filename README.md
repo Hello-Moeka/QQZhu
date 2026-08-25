@@ -29,3 +29,7 @@ docker compose up -d
 ## 健康检查
 - 路由：`GET /healthz`，返回 `ok`。
 - Compose 已配置 healthcheck，可用于探活或负载均衡。
+
+## 许可证
+
+本项目基于 [GPL-3.0](LICENSE) 协议开源。
