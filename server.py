@@ -7,6 +7,7 @@ import aiohttp
 import aiosqlite
 import json
 import os
+import re
 import secrets
 import time
 import io
@@ -964,22 +965,184 @@ async def index(request):
     )
 
 
-def _is_artist_matched(target_artist: str, candidate_artists: list) -> bool:
-    """判断候选歌手列表中是否包含目标歌手（忽略大小写与分隔符/括号）。"""
+_PREVIEW_VERSION_KEYWORDS = (
+    "live", "remix", "acoustic", "demo", "instrumental", "cover",
+    "伴奏", "纯音乐", "翻唱", "现场", "dj版", "dj ", "ktv", "铃声",
+)
+_PREVIEW_VERSION_SUFFIX_RE = re.compile(
+    r"[\(\（\[]\s*(?:"
+    r"live|remix|acoustic|demo|instrumental|cover|"
+    r"伴奏|纯音乐|翻唱|现场|dj版?|"
+    r"[^)\]）\]]*?(?:版|ver\.?))"
+    r"\s*[\)\）\]]",
+    re.IGNORECASE,
+)
+_PREVIEW_TRAILING_VERSION_RE = re.compile(
+    r"[\s\-–—]+(?:live|remix|acoustic|demo|instrumental|cover|现场版?|伴奏版?)$",
+    re.IGNORECASE,
+)
+
+
+def _normalize_match_text(text: str) -> str:
+    """统一大小写、空白与常见标点，便于歌名/歌手比较。"""
+    if not text:
+        return ""
+    normalized = str(text).strip().lower()
+    normalized = normalized.replace("（", "(").replace("）", ")").replace("【", "[").replace("】", "]")
+    for ch in " \t\u3000·._-—–~":
+        normalized = normalized.replace(ch, "")
+    return normalized
+
+
+def _strip_preview_version_suffix(name: str) -> str:
+    """去掉 Live/Remix/伴奏 等版本后缀，保留核心歌名。"""
+    if not name:
+        return ""
+    result = _PREVIEW_VERSION_SUFFIX_RE.sub("", name)
+    result = _PREVIEW_TRAILING_VERSION_RE.sub("", result)
+    return result.strip()
+
+
+def _split_artist_names(artist: str) -> list:
+    """将「A/B feat. B」等复合歌手拆成独立名字。"""
+    if not artist:
+        return []
+    normalized = str(artist)
+    for sep in ("/", "&", "＆", "、", "×", " x ", " feat.", " feat ", " ft.", " ft ", " featuring ", " with "):
+        normalized = normalized.replace(sep, ",")
+    normalized = normalized.replace("(", ",").replace(")", ",").replace("（", ",").replace("）", ",")
+    return [part.strip() for part in normalized.split(",") if part.strip()]
+
+
+def _artist_match_score(target_artist: str, candidate_artists: list) -> float:
+    """歌手匹配分：完全一致 1.0，合理包含 0.6~0.95，不匹配 0。"""
     if not target_artist:
-        return True
-    t_art = target_artist.lower().replace(" ", "")
-    t_parts = [
-        p.strip() for p in t_art.replace("(", ",").replace(")", ",").replace("（", ",").replace("）", ",").replace("/", ",").split(",") if p.strip()
-    ]
-    for c_art in candidate_artists:
-        if not c_art:
+        return 0.5
+    target_parts = [_normalize_match_text(part) for part in _split_artist_names(target_artist)]
+    candidate_parts = [_normalize_match_text(part) for part in candidate_artists if part]
+    if not target_parts or not candidate_parts:
+        return 0.0
+
+    best = 0.0
+    for target_part in target_parts:
+        if len(target_part) < 2:
             continue
-        c_clean = str(c_art).lower().replace(" ", "")
-        for tp in t_parts:
-            if tp in c_clean or c_clean in tp:
-                return True
-    return False
+        for candidate_part in candidate_parts:
+            if target_part == candidate_part:
+                best = max(best, 1.0)
+                continue
+            shorter, longer = sorted((target_part, candidate_part), key=len)
+            if len(shorter) < 2 or shorter not in longer:
+                continue
+            overlap = len(shorter) / len(longer)
+            if overlap >= 0.75:
+                best = max(best, 0.95)
+            elif overlap >= 0.5:
+                best = max(best, 0.75)
+            elif len(shorter) >= 3:
+                best = max(best, 0.6)
+    return best
+
+
+def _name_match_score(target_name: str, candidate_name: str) -> float:
+    """歌名匹配分：优先核心歌名一致，其次高重叠包含关系。"""
+    target_core = _normalize_match_text(_strip_preview_version_suffix(target_name))
+    candidate_core = _normalize_match_text(_strip_preview_version_suffix(candidate_name))
+    candidate_raw = _normalize_match_text(candidate_name)
+    if not target_core or not candidate_core:
+        return 0.0
+
+    if target_core == candidate_core:
+        return 1.0
+    if target_core == candidate_raw:
+        return 0.95
+
+    shorter, longer = sorted((target_core, candidate_core), key=len)
+    if shorter in longer:
+        overlap = len(shorter) / len(longer)
+        if overlap >= 0.85:
+            return 0.9
+        if overlap >= 0.65:
+            return 0.75
+        if len(shorter) >= 4:
+            return 0.55
+    return 0.0
+
+
+def _preview_version_penalty(candidate_name: str, target_name: str) -> float:
+    """候选结果带 Live/Remix/伴奏 等版本标记、但目标歌名没有时扣分。"""
+    candidate_lower = candidate_name.lower()
+    target_lower = target_name.lower()
+    penalty = 0.0
+    for keyword in _PREVIEW_VERSION_KEYWORDS:
+        if keyword in candidate_lower and keyword not in target_lower:
+            penalty += 0.12
+    return min(penalty, 0.45)
+
+
+def _score_preview_song(target_name: str, target_artist: str, song: dict) -> float:
+    """综合歌名/歌手/版本信息，为候选歌曲打分。"""
+    song_name = song.get("name", "")
+    artist_objs = song.get("ar", song.get("artists", [])) or []
+    artist_names = [
+        artist.get("name")
+        for artist in artist_objs
+        if isinstance(artist, dict) and artist.get("name")
+    ]
+
+    name_score = _name_match_score(target_name, song_name)
+    if name_score <= 0:
+        return 0.0
+
+    artist_score = _artist_match_score(target_artist, artist_names)
+    penalty = _preview_version_penalty(song_name, target_name)
+
+    if target_artist:
+        total = name_score * 0.62 + artist_score * 0.38 - penalty
+    else:
+        total = name_score * 0.88 - penalty
+    return max(0.0, total)
+
+
+def _pick_best_preview_song(target_name: str, target_artist: str, songs: list, min_score: float = 0.58):
+    """从候选列表中选出得分最高且超过阈值的歌曲。"""
+    best_song = None
+    best_score = 0.0
+    for song in songs:
+        score = _score_preview_song(target_name, target_artist, song)
+        if score > best_score:
+            best_score = score
+            best_song = song
+    if best_song is None or best_score < min_score:
+        return None, best_score
+    return best_song, best_score
+
+
+async def _search_netease_songs(session, headers, keywords: str, limit: int = 50) -> list:
+    """调用网易云 PC 搜索接口，返回歌曲列表。"""
+    if not keywords.strip():
+        return []
+    url = "https://music.163.com/api/cloudsearch/pc"
+    form_data = {"s": keywords.strip(), "type": "1", "offset": "0", "limit": str(limit)}
+    async with session.post(url, data=form_data, headers=headers) as resp:
+        if resp.status != 200:
+            return []
+        data = await resp.json(content_type=None)
+        return (data.get("result", {}) or {}).get("songs", []) or []
+
+
+def _merge_preview_candidates(*song_lists) -> list:
+    """按歌曲 ID 去重，保留首次出现顺序。"""
+    merged = []
+    seen_ids = set()
+    for songs in song_lists:
+        for song in songs or []:
+            song_id = song.get("id")
+            if song_id is None or song_id in seen_ids:
+                continue
+            seen_ids.add(song_id)
+            merged.append(song)
+    return merged
 
 
 async def _resolve_audio_url(session, song_id: int) -> str:
@@ -1008,7 +1171,6 @@ async def netease_preview_handler(request):
     if not name:
         return web.json_response({"ok": False, "message": "歌名不能为空"})
 
-    url = "https://music.163.com/api/cloudsearch/pc"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Referer": "https://music.163.com/",
@@ -1027,65 +1189,27 @@ async def netease_preview_handler(request):
     try:
         timeout = aiohttp.ClientTimeout(total=8)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            keywords = f"{name} {artist}".strip()
-            form_data = {"s": keywords, "type": "1", "offset": "0", "limit": "20"}
-            async with session.post(url, data=form_data, headers=headers) as resp:
-                if resp.status != 200:
-                    return web.json_response({"ok": False, "message": f"网易云 API 请求失败 ({resp.status})"})
-                data = await resp.json(content_type=None)
-                songs = (data.get("result", {}) or {}).get("songs", []) or []
+            search_keywords = [f"{name} {artist}".strip()]
+            if artist:
+                search_keywords.extend([name, f"{artist} {name}"])
+            else:
+                search_keywords.append(name)
 
-            if not songs and artist:
-                form_data["s"] = name
-                async with session.post(url, data=form_data, headers=headers) as resp:
-                    if resp.status == 200:
-                        data = await resp.json(content_type=None)
-                        songs = (data.get("result", {}) or {}).get("songs", []) or []
+            candidate_lists = []
+            for keywords in dict.fromkeys(search_keywords):
+                candidate_lists.append(await _search_netease_songs(session, headers, keywords))
 
+            songs = _merge_preview_candidates(*candidate_lists)
             if not songs:
                 return web.json_response({"ok": False, "message": "网易云未找到匹配歌曲"})
 
-            name_clean = name.strip().lower()
-            matched_song = None
-
-            # 匹配优先级 1：歌名一致（或相互包含） AND 歌手匹配（原唱精准选择）
-            for s in songs:
-                s_name = s.get("name", "").strip().lower()
-                ar_objs = s.get("ar", s.get("artists", [])) or []
-                ar_names = [ar.get("name") for ar in ar_objs if isinstance(ar, dict) and ar.get("name")]
-                if (s_name == name_clean or name_clean in s_name or s_name in name_clean) and _is_artist_matched(artist, ar_names):
-                    matched_song = s
-                    break
-
-            # 匹配优先级 2：歌名完全一致
+            min_score = 0.58 if artist else 0.52
+            matched_song, match_score = _pick_best_preview_song(name, artist, songs, min_score=min_score)
             if not matched_song:
-                for s in songs:
-                    s_name = s.get("name", "").strip().lower()
-                    if s_name == name_clean:
-                        matched_song = s
-                        break
-
-            # 匹配优先级 3：纯歌名广域检索 + 歌手校验
-            if not matched_song and artist:
-                form_data["s"] = name
-                async with session.post(url, data=form_data, headers=headers) as resp:
-                    if resp.status == 200:
-                        data = await resp.json(content_type=None)
-                        fallback_songs = (data.get("result", {}) or {}).get("songs", []) or []
-                for s in fallback_songs:
-                    s_name = s.get("name", "").strip().lower()
-                    ar_objs = s.get("ar", s.get("artists", [])) or []
-                    ar_names = [ar.get("name") for ar in ar_objs if isinstance(ar, dict) and ar.get("name")]
-                    if s_name == name_clean and _is_artist_matched(artist, ar_names):
-                        matched_song = s
-                        break
-
-            # 匹配优先级 4：默认首条
-            if not matched_song and songs:
-                matched_song = songs[0]
-
-            if not matched_song:
-                return web.json_response({"ok": False, "message": "网易云未找到匹配歌曲"})
+                return web.json_response({
+                    "ok": False,
+                    "message": "未找到足够匹配的原唱试听，请确认歌名与歌手是否准确",
+                })
 
             song_id = matched_song.get("id")
             song_name, artist_name, pic_url = parse_song_meta(matched_song)
@@ -1097,7 +1221,8 @@ async def netease_preview_handler(request):
                 "audio_url": audio_url,
                 "name": song_name,
                 "artist": artist_name,
-                "picUrl": pic_url
+                "picUrl": pic_url,
+                "match_score": round(match_score, 3),
             })
     except Exception as exc:
         return web.json_response({"ok": False, "message": f"获取试听失败: {exc}"})

@@ -90,14 +90,24 @@
         .song-card,
         .intro {
             position: relative;
-            perspective: 1000px;
-            transform-style: preserve-3d;
             backface-visibility: hidden;
             -webkit-backface-visibility: hidden;
-            will-change: transform;
             transition: transform 0.3s var(--apple-ease),
                         box-shadow 0.3s var(--apple-ease),
                         background 0.3s var(--apple-ease);
+        }
+
+        /* 3D 倾斜与 GPU 图层仅在精细指针设备 hover 时启用，避免海量卡片各自占层 */
+        @media (hover: hover) and (pointer: fine) {
+            .song-card,
+            .intro {
+                perspective: 1000px;
+                transform-style: preserve-3d;
+            }
+            .song-card.hovering,
+            .intro.hovering {
+                will-change: transform;
+            }
         }
 
         /* 锁死 GPU 图层，防止字体在 3D 转换时重绘闪烁 */
@@ -275,9 +285,7 @@
            Apple 搜索过滤栏与 Icon Wrapper
            ---------------------------------------------------- */
         .song-list {
-            background: var(--apple-glass-bg);
-            backdrop-filter: var(--apple-blur);
-            -webkit-backdrop-filter: var(--apple-blur);
+            background: rgba(16, 20, 36, 0.78);
             border: 1px solid var(--apple-glass-border);
             border-top: 1.5px solid var(--apple-glass-top-border);
             border-left: 1.5px solid var(--apple-glass-left-border);
@@ -413,6 +421,9 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+            content-visibility: auto;
+            contain-intrinsic-size: auto 130px;
+            contain: layout style paint;
         }
         .song-card.hovering {
             transform: perspective(1000px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) translateY(-5px) scale(1.018);
@@ -538,7 +549,9 @@
         .song-list-table tbody tr {
             background: rgba(255, 255, 255, 0.08);
             cursor: pointer;
-            transition: all 0.25s var(--apple-ease);
+            transition: background-color 0.25s var(--apple-ease), box-shadow 0.25s var(--apple-ease);
+            content-visibility: auto;
+            contain-intrinsic-size: auto 52px;
         }
         .song-list-table tbody tr td {
             border-top: 1px solid rgba(255, 255, 255, 0.15);
@@ -559,11 +572,24 @@
         }
         .song-list-table tbody tr:hover {
             background: rgba(255, 255, 255, 0.22);
-            transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
         }
         .song-list-table tbody tr:hover td {
             color: #ffffff;
+        }
+
+        /* 滚动期间暂停卡片 3D/高光，避免滚动时持续触发合成层更新 */
+        body.is-scrolling .song-card::before,
+        body.is-scrolling .song-card::after,
+        body.is-scrolling .intro::before,
+        body.is-scrolling .intro::after {
+            opacity: 0 !important;
+            transition: none;
+        }
+        body.is-scrolling .song-card.hovering,
+        body.is-scrolling .intro.hovering {
+            transform: none !important;
+            will-change: auto;
         }
 
         /* 隐藏控制 */
@@ -961,7 +987,7 @@
             <div class="song-grid">
                 {% for song in songs %}
                 {% if song.language == lang %}
-                <div class="song-card" data-song-name="{{ song.name }}">
+                <div class="song-card" data-song-name="{{ song.name }}" data-artist="{{ song.artist }}" data-language="{{ song.language }}" data-genre="{{ song.genre }}">
                     <h4>{{ song.name }}</h4>
                     <p>歌手：{{ song.artist }}</p>
                     <p>风格：{{ song.genre }}</p>
@@ -978,7 +1004,12 @@
         </div>
         {% endfor %}
 
-        <!-- 列表布局 -->
+        <!-- 列表布局挂载点（首次切换时再渲染，避免双倍 DOM） -->
+        <div id="song-list-table-host"></div>
+    </div>
+
+    <!-- 列表布局模板：不参与渲染，不计入布局树 -->
+    <template id="song-list-template">
         <table class="song-list-table">
             <thead>
                 <tr>
@@ -991,7 +1022,7 @@
             </thead>
             <tbody>
                 {% for song in songs %}
-                <tr data-song-name="{{ song.name }}">
+                <tr data-song-name="{{ song.name }}" data-artist="{{ song.artist }}" data-language="{{ song.language }}" data-genre="{{ song.genre }}">
                     <td data-label="歌名">{{ song.name }}</td>
                     <td data-label="歌手">{{ song.artist }}</td>
                     <td data-label="语言">{{ song.language }}</td>
@@ -1006,7 +1037,7 @@
                 {% endfor %}
             </tbody>
         </table>
-    </div>
+    </template>
 
     <!-- 备案号页脚 -->
     <div class="footer">
@@ -1052,15 +1083,44 @@
 
     <script>
         // ----------------------------------------------------
-        // 高性能 JS 事件代理 (Event Delegation + rAF 节流)
-        // 避免几百个卡片注册几百个 mousemove 导致滚动卡顿
+        // 高性能 JS：事件委托 + rAF 节流 + 滚动时暂停 hover 特效
         // ----------------------------------------------------
         let currentHoveredCard = null;
-        let ticking = false;
+        let mouseTicking = false;
+        let isScrolling = false;
+        let scrollEndTimer = null;
+        let listLayoutMounted = false;
+
+        function clearHoveredCard() {
+            if (!currentHoveredCard) return;
+            currentHoveredCard.classList.remove('hovering');
+            currentHoveredCard.style.removeProperty('--tilt-x');
+            currentHoveredCard.style.removeProperty('--tilt-y');
+            currentHoveredCard.style.removeProperty('--mouse-x');
+            currentHoveredCard.style.removeProperty('--mouse-y');
+            currentHoveredCard = null;
+        }
+
+        window.addEventListener('scroll', () => {
+            isScrolling = true;
+            document.body.classList.add('is-scrolling');
+            clearHoveredCard();
+            clearTimeout(scrollEndTimer);
+            scrollEndTimer = setTimeout(() => {
+                isScrolling = false;
+                document.body.classList.remove('is-scrolling');
+            }, 140);
+        }, { passive: true });
 
         document.addEventListener('mousemove', (e) => {
-            if (!ticking) {
+            if (isScrolling) return;
+            if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+            if (!mouseTicking) {
+                mouseTicking = true;
                 requestAnimationFrame(() => {
+                    mouseTicking = false;
+                    if (isScrolling) return;
+
                     const card = e.target.closest('.song-card, .intro');
                     if (card) {
                         if (currentHoveredCard && currentHoveredCard !== card) {
@@ -1079,17 +1139,14 @@
                         card.style.setProperty('--mouse-y', (y * 100).toFixed(1) + '%');
                         card.style.setProperty('--tilt-x', ((y - 0.5) * -5).toFixed(2) + 'deg');
                         card.style.setProperty('--tilt-y', ((x - 0.5) * 5).toFixed(2) + 'deg');
-                    } else if (currentHoveredCard) {
-                        currentHoveredCard.classList.remove('hovering');
-                        currentHoveredCard.style.setProperty('--tilt-x', '0deg');
-                        currentHoveredCard.style.setProperty('--tilt-y', '0deg');
-                        currentHoveredCard = null;
+                    } else {
+                        clearHoveredCard();
                     }
-                    ticking = false;
                 });
-                ticking = true;
             }
-        });
+        }, { passive: true });
+
+        document.addEventListener('mouseleave', clearHoveredCard, { passive: true });
 
         // 顶部浮动提示框
         let toastTimer = null;
@@ -1104,9 +1161,10 @@
             }, 2600);
         }
 
-        // 复制歌名
-        function copySongName(event) {
-            const songName = event.currentTarget.getAttribute('data-song-name');
+        // 复制歌名 + 试听：统一事件委托，避免为每首歌单独绑定监听
+        function copySongNameFromElement(element) {
+            const songName = element.getAttribute('data-song-name');
+            if (!songName) return;
             const textToCopy = "点歌 " + songName;
 
             if (navigator.clipboard) {
@@ -1128,9 +1186,59 @@
             }
         }
 
-        // 绑定点击事件
-        document.querySelectorAll('.song-card, .song-list-table tr').forEach(element => {
-            element.addEventListener('click', copySongName);
+        async function playPreview(btn) {
+            const songName = btn.getAttribute('data-name');
+            const songArtist = btn.getAttribute('data-artist') || '';
+            if (!songName) return;
+
+            const originalHtml = btn.innerHTML;
+            btn.classList.add('loading');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 搜索中';
+
+            try {
+                const res = await fetch(`/api/netease-preview?name=${encodeURIComponent(songName)}&artist=${encodeURIComponent(songArtist)}`);
+                const data = await res.json();
+                btn.classList.remove('loading');
+                btn.innerHTML = originalHtml;
+
+                if (data.ok) {
+                    playerTitle.textContent = data.name;
+                    playerArtist.textContent = data.artist;
+                    playerCover.src = data.picUrl || '/static/singer.jpg';
+                    playStartOffset = 0;
+                    audioElement.src = data.audio_url;
+                    audioPlayerBar.classList.remove('hidden');
+                    audioElement.play().catch(() => {
+                        showToast("该歌曲在网易云暂无试听资源或受版权保护。");
+                    });
+                } else {
+                    showToast(data.message || '未找到匹配的试听音频');
+                }
+            } catch (err) {
+                btn.classList.remove('loading');
+                btn.innerHTML = originalHtml;
+                showToast('网络异常，获取试听失败');
+            }
+        }
+
+        document.querySelector('.song-list').addEventListener('click', (event) => {
+            const previewBtn = event.target.closest('.btn-preview');
+            if (previewBtn) {
+                event.stopPropagation();
+                playPreview(previewBtn);
+                return;
+            }
+
+            const card = event.target.closest('.song-card');
+            if (card) {
+                copySongNameFromElement(card);
+                return;
+            }
+
+            const row = event.target.closest('.song-list-table tbody tr');
+            if (row) {
+                copySongNameFromElement(row);
+            }
         });
 
         // ----------------------------------------------------
@@ -1138,12 +1246,23 @@
         // ----------------------------------------------------
         const toggleLayoutBtn = document.getElementById('toggle-layout');
         const songListContainer = document.querySelector('.song-list');
+        const songListTableHost = document.getElementById('song-list-table-host');
+
+        function ensureListLayoutMounted() {
+            if (listLayoutMounted) return;
+            const template = document.getElementById('song-list-template');
+            if (!template || !template.content.firstElementChild) return;
+            songListTableHost.appendChild(template.content.firstElementChild.cloneNode(true));
+            listLayoutMounted = true;
+        }
 
         toggleLayoutBtn.addEventListener('click', () => {
             if (songListContainer.classList.contains('hide-table')) {
+                ensureListLayoutMounted();
                 songListContainer.classList.remove('hide-table');
                 songListContainer.classList.add('hide-cards');
                 toggleLayoutBtn.innerHTML = '<i class="fas fa-th-large"></i> 切换为卡片布局';
+                filterSongs();
             } else {
                 songListContainer.classList.remove('hide-cards');
                 songListContainer.classList.add('hide-table');
@@ -1176,48 +1295,6 @@
             const s = Math.floor(seconds % 60);
             return (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
         }
-
-        // 绑定所有试听按钮
-        document.querySelectorAll('.btn-preview').forEach(btn => {
-            btn.addEventListener('click', function(e) {
-                e.stopPropagation(); // 阻止触发复制歌名
-                const songName = this.getAttribute('data-name');
-                const songArtist = this.getAttribute('data-artist') || '';
-                
-                const originalHtml = this.innerHTML;
-                this.classList.add('loading');
-                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 搜索中';
-
-                fetch(`/api/netease-preview?name=${encodeURIComponent(songName)}&artist=${encodeURIComponent(songArtist)}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        this.classList.remove('loading');
-                        this.innerHTML = originalHtml;
-
-                        if (data.ok) {
-                            playerTitle.textContent = data.name;
-                            playerArtist.textContent = data.artist;
-                            playerCover.src = data.picUrl || '/static/singer.jpg';
-                            
-                            playStartOffset = 0;
-                            audioElement.src = data.audio_url;
-                            audioPlayerBar.classList.remove('hidden');
-                            
-                            audioElement.play().catch(err => {
-                                console.warn("播放受阻/版权限制:", err);
-                                showToast("该歌曲在网易云暂无试听资源或受版权保护。");
-                            });
-                        } else {
-                            showToast(data.message || '未找到匹配的试听音频');
-                        }
-                    })
-                    .catch(err => {
-                        this.classList.remove('loading');
-                        this.innerHTML = originalHtml;
-                        showToast('网络异常，获取试听失败');
-                    });
-            });
-        });
 
         // 播放器按钮交互
         playerBtnPlay.addEventListener('click', () => {
@@ -1288,56 +1365,52 @@
         });
 
         // ----------------------------------------------------
-        // 搜索过滤逻辑
+        // 搜索过滤逻辑（仅处理当前可见布局 + rAF 节流）
         // ----------------------------------------------------
+        let filterTicking = false;
+
+        function songMatchesFilters(element, nameFilter, artistFilter, languageFilter, genreFilter) {
+            const songName = (element.dataset.songName || '').toLowerCase();
+            const artist = (element.dataset.artist || '').toLowerCase();
+            const language = (element.dataset.language || '').toLowerCase();
+            const genre = (element.dataset.genre || '').toLowerCase();
+
+            return songName.includes(nameFilter)
+                && artist.includes(artistFilter)
+                && (!languageFilter || language.includes(languageFilter))
+                && (!genreFilter || genre.includes(genreFilter));
+        }
+
         function filterSongs() {
-            const nameFilter = document.getElementById('filter-name').value.toLowerCase();
-            const artistFilter = document.getElementById('filter-artist').value.toLowerCase();
-            const languageFilter = document.getElementById('filter-language').value.toLowerCase();
-            const genreFilter = document.getElementById('filter-genre').value.toLowerCase();
+            if (filterTicking) return;
+            filterTicking = true;
+            requestAnimationFrame(() => {
+                filterTicking = false;
 
-            // 过滤卡片布局
-            document.querySelectorAll('.category').forEach(category => {
-                let hasVisibleCards = false;
-                category.querySelectorAll('.song-card').forEach(card => {
-                    const songName = card.querySelector('h4').textContent.toLowerCase();
-                    const artist = card.querySelector('p:nth-child(2)').textContent.toLowerCase();
-                    const genre = card.querySelector('p:nth-child(3)').textContent.toLowerCase();
-                    const language = category.querySelector('h3').textContent.toLowerCase();
+                const nameFilter = document.getElementById('filter-name').value.toLowerCase();
+                const artistFilter = document.getElementById('filter-artist').value.toLowerCase();
+                const languageFilter = document.getElementById('filter-language').value.toLowerCase();
+                const genreFilter = document.getElementById('filter-genre').value.toLowerCase();
+                const isListLayout = songListContainer.classList.contains('hide-cards');
 
-                    const matchesName = songName.includes(nameFilter);
-                    const matchesArtist = artist.includes(artistFilter);
-                    const matchesLanguage = !languageFilter || language.includes(languageFilter);
-                    const matchesGenre = !genreFilter || genre.includes(genreFilter);
-
-                    if (matchesName && matchesArtist && matchesLanguage && matchesGenre) {
-                        card.style.display = 'flex';
-                        hasVisibleCards = true;
-                    } else {
-                        card.style.display = 'none';
-                    }
-                });
-
-                category.style.display = hasVisibleCards ? 'block' : 'none';
-            });
-
-            // 过滤列表布局
-            document.querySelectorAll('.song-list-table tbody tr').forEach(row => {
-                const songName = row.children[0].textContent.toLowerCase();
-                const artist = row.children[1].textContent.toLowerCase();
-                const language = row.children[2].textContent.toLowerCase();
-                const genre = row.children[3].textContent.toLowerCase();
-
-                const matchesName = songName.includes(nameFilter);
-                const matchesArtist = artist.includes(artistFilter);
-                const matchesLanguage = !languageFilter || language.includes(languageFilter);
-                const matchesGenre = !genreFilter || genre.includes(genreFilter);
-
-                if (matchesName && matchesArtist && matchesLanguage && matchesGenre) {
-                    row.style.display = 'table-row';
-                } else {
-                    row.style.display = 'none';
+                if (isListLayout) {
+                    document.querySelectorAll('.song-list-table tbody tr').forEach(row => {
+                        row.style.display = songMatchesFilters(row, nameFilter, artistFilter, languageFilter, genreFilter)
+                            ? 'table-row'
+                            : 'none';
+                    });
+                    return;
                 }
+
+                document.querySelectorAll('.category').forEach(category => {
+                    let hasVisibleCards = false;
+                    category.querySelectorAll('.song-card').forEach(card => {
+                        const visible = songMatchesFilters(card, nameFilter, artistFilter, languageFilter, genreFilter);
+                        card.style.display = visible ? 'flex' : 'none';
+                        if (visible) hasVisibleCards = true;
+                    });
+                    category.style.display = hasVisibleCards ? 'block' : 'none';
+                });
             });
         }
 
