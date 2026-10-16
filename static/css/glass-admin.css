@@ -1,0 +1,456 @@
+/* QQZhu Glass Admin — 后台可读性优先 */
+
+body.glass-admin-app .glass-bg::before {
+    background-color: rgba(8, 10, 20, 0.58);
+}
+
+body.glass-admin-app .glass-panel,
+body.glass-admin-app .glass-auth__card {
+    background: rgba(16, 20, 36, 0.94);
+    border-color: rgba(255, 255, 255, 0.16);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+}
+
+body.glass-admin-app .glass-nav.glass-chrome {
+    background: rgba(14, 18, 32, 0.92);
+}
+
+body.glass-admin-app .glass-admin__section {
+    background: rgba(10, 14, 28, 0.88);
+    border-color: rgba(255, 255, 255, 0.14);
+}
+
+body.glass-admin-app .glass-admin label,
+body.glass-admin-app .glass-admin h2,
+body.glass-admin-app .glass-admin th,
+body.glass-admin-app .glass-admin__title {
+    color: #fff;
+    text-shadow: none;
+}
+
+body.glass-admin-app .glass-admin__subtitle,
+body.glass-admin-app .glass-admin .tips,
+body.glass-admin-app .glass-admin .help-text,
+body.glass-admin-app .glass-admin td {
+    color: rgba(255, 255, 255, 0.82);
+}
+
+body.glass-admin-app .glass-admin input[type="text"],
+body.glass-admin-app .glass-admin input[type="number"],
+body.glass-admin-app .glass-admin input[type="password"],
+body.glass-admin-app .glass-admin textarea,
+body.glass-admin-app .glass-admin select,
+body.glass-admin-app .glass-auth__card .glass-input {
+    background: rgba(0, 0, 0, 0.32);
+    border-color: rgba(255, 255, 255, 0.22);
+    color: #fff;
+    text-shadow: none;
+}
+
+body.glass-admin-app .glass-admin input::placeholder,
+body.glass-admin-app .glass-auth__card .glass-input::placeholder {
+    color: rgba(255, 255, 255, 0.45);
+}
+
+body.glass-admin-app .glass-admin th {
+    background: rgba(0, 0, 0, 0.28);
+}
+
+body.glass-admin-app .glass-admin code {
+    background: rgba(0, 0, 0, 0.35);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+body.glass-admin-app .glass-admin .message {
+    background: rgba(0, 122, 255, 0.22);
+    border-color: rgba(0, 122, 255, 0.35);
+    color: #fff;
+}
+
+body.glass-admin-app .glass-admin .btn-secondary,
+body.glass-admin-app .glass-admin .file-input .btn {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.glass-admin {
+    padding: var(--glass-space-lg) 28px 30px;
+    margin-bottom: var(--glass-space-lg);
+}
+
+.glass-admin__title {
+    margin: 0 0 var(--glass-space-xs);
+    font-size: 26px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: var(--glass-text-shadow-strong);
+}
+
+.glass-admin__subtitle {
+    margin: 0 0 var(--glass-space-md);
+    font-size: 13px;
+    color: var(--glass-text-muted);
+}
+
+.glass-admin__subtitle code {
+    background: var(--glass-surface-3);
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--glass-text-sub);
+}
+
+.glass-admin__section {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--glass-radius-md);
+    padding: var(--glass-space-lg);
+    margin-bottom: var(--glass-space-md);
+    background: var(--glass-surface-3);
+}
+
+.glass-admin__section h2 {
+    margin: 0 0 var(--glass-space-sm);
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: var(--glass-text-shadow);
+    padding-bottom: var(--glass-space-xs);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-admin label {
+    display: block;
+    margin: var(--glass-space-sm) 0 4px;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--glass-text-sub);
+}
+
+.glass-admin input[type="text"],
+.glass-admin input[type="number"],
+.glass-admin input[type="password"],
+.glass-admin input[type="range"],
+.glass-admin textarea,
+.glass-admin select {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: var(--glass-radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-top-color: rgba(255, 255, 255, 0.36);
+    background: var(--glass-surface-2);
+    color: #fff;
+    font-family: var(--glass-font);
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.glass-admin textarea {
+    resize: vertical;
+    min-height: 88px;
+}
+
+.glass-admin input[type="range"] {
+    padding: 0;
+    height: 28px;
+    accent-color: var(--glass-accent);
+}
+
+.glass-admin input:focus-visible,
+.glass-admin textarea:focus-visible,
+.glass-admin select:focus-visible {
+    outline: 2px solid var(--glass-accent-text);
+    outline-offset: 2px;
+    border-color: rgba(0, 122, 255, 0.55);
+}
+
+.glass-admin .actions {
+    margin-top: var(--glass-space-sm);
+    text-align: right;
+}
+
+.glass-admin button,
+.glass-admin .btn {
+    border: none;
+    border-radius: var(--glass-radius-sm);
+    padding: 10px 16px;
+    font-family: var(--glass-font);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #fff;
+    background: var(--glass-accent-soft);
+    border: 1px solid rgba(0, 122, 255, 0.35);
+    transition: background 0.2s, transform 0.2s;
+}
+
+.glass-admin button:hover,
+.glass-admin .btn:hover {
+    background: rgba(0, 122, 255, 0.38);
+}
+
+.glass-admin button:focus-visible,
+.glass-admin .btn:focus-visible {
+    outline: 2px solid var(--glass-accent-text);
+    outline-offset: 2px;
+}
+
+.glass-admin .btn-danger { background: rgba(231, 76, 60, 0.35); border-color: rgba(231, 76, 60, 0.45); }
+.glass-admin .btn-danger:hover { background: rgba(231, 76, 60, 0.48); }
+.glass-admin .btn-warning { background: rgba(243, 156, 18, 0.35); border-color: rgba(243, 156, 18, 0.45); }
+.glass-admin .btn-success { background: rgba(39, 174, 96, 0.35); border-color: rgba(39, 174, 96, 0.45); }
+.glass-admin .btn-primary { background: var(--glass-accent-soft); }
+
+.glass-admin .message {
+    margin-bottom: var(--glass-space-sm);
+    padding: 10px 14px;
+    border-radius: var(--glass-radius-sm);
+    background: rgba(0, 122, 255, 0.18);
+    border: 1px solid rgba(0, 122, 255, 0.28);
+    color: #fff;
+    font-size: 14px;
+}
+
+.glass-admin .message.error {
+    background: rgba(231, 76, 60, 0.2);
+    border-color: rgba(231, 76, 60, 0.35);
+}
+
+.glass-admin .tips,
+.glass-admin .help-text {
+    font-size: 13px;
+    color: var(--glass-text-muted);
+    margin-top: 4px;
+}
+
+.glass-admin .info-link {
+    color: var(--glass-accent-text);
+    text-decoration: none;
+}
+
+.glass-admin .info-link:hover {
+    text-decoration: underline;
+}
+
+.glass-admin code {
+    background: rgba(0, 0, 0, 0.22);
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--glass-text-sub);
+}
+
+.glass-admin .song-list {
+    overflow-x: auto;
+}
+
+.glass-admin table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.glass-admin th,
+.glass-admin td {
+    padding: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: left;
+    color: var(--glass-text-sub);
+    font-size: 13px;
+}
+
+.glass-admin th {
+    color: #fff;
+    font-weight: 600;
+    background: var(--glass-surface-2);
+}
+
+.glass-admin .small-input {
+    width: 100%;
+    max-width: 200px;
+    padding: 8px 10px;
+    font-size: 13px;
+}
+
+.glass-admin .backup-row,
+.glass-admin .backup-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--glass-space-sm);
+    flex-wrap: wrap;
+}
+
+.glass-admin .backup-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.glass-admin .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    border-radius: var(--glass-radius-sm);
+    background: var(--glass-surface-2);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    justify-content: center;
+}
+
+.glass-admin .btn-secondary:hover {
+    background: var(--glass-surface-1);
+}
+
+.glass-admin .file-input {
+    position: relative;
+    overflow: hidden;
+    display: inline-block;
+}
+
+.glass-admin .file-input input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.glass-admin .file-input .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 140px;
+    justify-content: center;
+    background: var(--glass-surface-2);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.glass-admin .status-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: var(--glass-radius-pill);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.glass-admin .status-badge.active {
+    background: rgba(39, 174, 96, 0.25);
+    color: #9cf0b8;
+}
+
+.glass-admin .status-badge.inactive {
+    background: rgba(231, 76, 60, 0.22);
+    color: #ffb4ab;
+}
+
+.glass-admin .form-row {
+    display: flex;
+    gap: var(--glass-space-sm);
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.glass-admin .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-width: 160px;
+}
+
+.glass-admin .form-group label {
+    margin: 0;
+}
+
+.glass-admin .scrim-control {
+    display: flex;
+    align-items: center;
+    gap: var(--glass-space-sm);
+}
+
+.glass-admin .scrim-control input[type="range"] {
+    flex: 1;
+}
+
+.glass-admin .scrim-control output {
+    min-width: 2.5em;
+    text-align: right;
+    color: var(--glass-accent-text);
+    font-weight: 600;
+}
+
+/* 登录页 */
+.glass-auth {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--glass-space-lg);
+}
+
+.glass-auth__card {
+    width: min(420px, 92vw);
+    padding: var(--glass-space-lg);
+}
+
+.glass-auth__title {
+    margin: 0 0 var(--glass-space-md);
+    text-align: center;
+    font-size: 24px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: var(--glass-text-shadow-strong);
+}
+
+.glass-auth__card .glass-input {
+    width: 100%;
+}
+
+.glass-auth__card label {
+    display: block;
+    margin: var(--glass-space-sm) 0 4px;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--glass-text-sub);
+}
+
+.glass-auth__card .message.error {
+    padding: 10px 14px;
+    border-radius: var(--glass-radius-sm);
+    background: rgba(231, 76, 60, 0.2);
+    border: 1px solid rgba(231, 76, 60, 0.35);
+    color: #fff;
+    font-size: 14px;
+}
+
+.glass-auth__card .glass-btn-primary {
+    width: 100%;
+    margin-top: var(--glass-space-md);
+    justify-content: center;
+}
+
+.glass-nav--spread {
+    width: 100%;
+    justify-content: space-between;
+}
+
+.glass-nav__brand {
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    padding: 8px 14px;
+    text-shadow: var(--glass-text-shadow);
+}
+
+@media (max-width: 768px) {
+    .glass-admin {
+        padding: 18px 16px 22px;
+    }
+
+    .glass-admin .small-input {
+        max-width: 100%;
+    }
+}

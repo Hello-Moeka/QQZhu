@@ -28,10 +28,24 @@ DEFAULT_SETTINGS = {
     "title": "歌单",
     "live_url": "https://",
     "background_url": "/static/background.jpg",
+    "background_scrim": "40",
     "singer_url": "/static/singer.jpg",
     "singer_name": "歌手名字",
     "singer_intro": "这里填写歌手介绍~",
 }
+
+
+def normalize_background_scrim(value, default="40"):
+    if value is None:
+        return str(default)
+    text = str(value).strip()
+    if not text:
+        return str(default)
+    try:
+        strength = int(text)
+    except (TypeError, ValueError):
+        return str(default)
+    return str(max(0, min(80, strength)))
 
 # ---------------------------------------------------------------------------
 # 配置
@@ -959,9 +973,27 @@ async def index(request):
     languages = await fetch_unique_languages(conn)
     genres = await fetch_unique_genres(conn)
     settings = await get_settings(conn)
+    songs_payload = [
+        {
+            "name": row["name"],
+            "artist": row["artist"],
+            "language": row["language"],
+            "genre": row["genre"],
+            "url": row["url"],
+        }
+        for row in songs
+    ]
     return aiohttp_jinja2.render_template(
         "index.html", request,
-        {"songs": songs, "languages": languages, "genres": genres, "settings": settings},
+        {
+            "songs": songs,
+            "languages": languages,
+            "genres": genres,
+            "settings": settings,
+            "songs_payload": songs_payload,
+            "languages_payload": languages,
+            "song_count": len(songs_payload),
+        },
     )
 
 
@@ -1538,6 +1570,10 @@ async def admin_action(request):
                 "singer_name": form.get("singer_name", "").strip() or current_settings.get("singer_name", DEFAULT_SETTINGS["singer_name"]),
                 "singer_intro": form.get("singer_intro", "").strip() or current_settings.get("singer_intro", DEFAULT_SETTINGS["singer_intro"]),
                 "background_url": current_settings.get("background_url", DEFAULT_SETTINGS["background_url"]),
+                "background_scrim": normalize_background_scrim(
+                    form.get("background_scrim"),
+                    current_settings.get("background_scrim", DEFAULT_SETTINGS["background_scrim"]),
+                ),
                 "singer_url": current_settings.get("singer_url", DEFAULT_SETTINGS["singer_url"]),
             }
             if hasattr(bg_file, "file") and bg_file.filename:
@@ -1549,7 +1585,7 @@ async def admin_action(request):
                 if saved:
                     new_settings["singer_url"] = saved
             await update_settings(conn, new_settings)
-            message = "站点信息已更新"
+            message = f"站点信息已更新（背景遮罩：{new_settings['background_scrim']}）"
 
         elif action == "update_admin_token":
             new_token = form.get("new_token", "").strip()

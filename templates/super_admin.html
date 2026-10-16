@@ -4,155 +4,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>超级管理员 - 租户管理</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background: #f0f2f5;
-            color: #333;
-        }
-        .navbar {
-            width: 100%;
-            background: linear-gradient(135deg, #2c3e50, #34495e);
-            padding: 12px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            color: #fff;
-            box-sizing: border-box;
-        }
-        .navbar h1 {
-            margin: 0;
-            font-size: 20px;
-        }
-        .navbar a {
-            color: #ecf0f1;
-            text-decoration: none;
-            margin-left: 20px;
-            font-size: 14px;
-            transition: color 0.2s;
-        }
-        .navbar a:hover { color: #fff; }
-        .container {
-            max-width: 900px;
-            margin: 30px auto;
-            padding: 0 20px;
-        }
-        .section {
-            background: #fff;
-            border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            padding: 24px;
-            margin-bottom: 24px;
-        }
-        .section h2 {
-            margin: 0 0 16px;
-            font-size: 18px;
-            color: #2c3e50;
-            border-bottom: 2px solid #ecf0f1;
-            padding-bottom: 10px;
-        }
-        .message {
-            background: #e8f5e9;
-            color: #2e7d32;
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
-        }
-        .message.error {
-            background: #ffebee;
-            color: #c62828;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 14px;
-        }
-        th, td {
-            text-align: left;
-            padding: 12px 8px;
-            border-bottom: 1px solid #eee;
-        }
-        th { color: #888; font-weight: 600; font-size: 12px; text-transform: uppercase; }
-        .status-badge {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        .status-badge.active { background: #e8f5e9; color: #2e7d32; }
-        .status-badge.inactive { background: #ffebee; color: #c62828; }
-        .btn {
-            padding: 6px 14px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: opacity 0.2s;
-        }
-        .btn:hover { opacity: 0.85; }
-        .btn-danger { background: #e74c3c; color: #fff; }
-        .btn-primary { background: #3498db; color: #fff; }
-        .btn-success { background: #27ae60; color: #fff; }
-        .btn-warning { background: #f39c12; color: #fff; }
-        .form-row {
-            display: flex;
-            gap: 12px;
-            align-items: flex-end;
-            flex-wrap: wrap;
-        }
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        .form-group label {
-            font-size: 13px;
-            font-weight: 600;
-            color: #555;
-        }
-        .form-group input {
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 14px;
-        }
-        .form-group input:focus {
-            outline: none;
-            border-color: #3498db;
-        }
-        .help-text {
-            font-size: 12px;
-            color: #999;
-            margin-top: 8px;
-        }
-        code {
-            background: #f5f5f5;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 13px;
-        }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/glass.css">
+    <link rel="stylesheet" href="/static/css/glass-admin.css">
 </head>
-<body>
-    <div class="navbar">
-        <h1><i class="fa fa-crown"></i> QQZhu 超级管理员</h1>
-        <div>
-            <a href="/super-admin/logout"><i class="fa fa-sign-out-alt"></i> 登出</a>
-        </div>
-    </div>
+<body class="glass-app glass-admin-app">
+    <div class="glass-bg" style="--glass-bg-image: url('/static/background.jpg'); --glass-scrim-opacity: 0.55"></div>
+    <div class="glass-page">
+        <nav class="glass-nav glass-chrome glass-nav--spread">
+            <span class="glass-nav__brand"><i class="fas fa-crown"></i> QQZhu 超级管理员</span>
+            <a href="/super-admin/logout"><i class="fas fa-sign-out-alt"></i> 登出</a>
+        </nav>
+        <main class="glass-panel glass-admin" id="glass-main-content">
 
-    <div class="container">
         {% if message %}
-        <div class="message {% if '失败' in message %}error{% endif %}">{{ message }}</div>
+        <div class="message{% if '失败' in message %} error{% endif %}">{{ message }}</div>
         {% endif %}
 
         <!-- 创建租户 -->
-        <div class="section">
+        <div class="glass-admin__section">
             <h2><i class="fa fa-plus-circle"></i> 创建租户</h2>
             <form method="post" action="/super-admin/action">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -180,7 +53,7 @@
         </div>
 
         <!-- 租户列表 -->
-        <div class="section">
+        <div class="glass-admin__section">
             <h2><i class="fa fa-list"></i> 租户列表</h2>
             {% if tenants %}
             <table>
@@ -244,7 +117,7 @@
         </div>
 
         <!-- 超级管理员 Token 设置 -->
-        <div class="section">
+        <div class="glass-admin__section">
             <h2><i class="fa fa-shield-alt"></i> 超级管理员 Token 设置</h2>
             <form method="post" action="/super-admin/action">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -268,7 +141,6 @@
                 </p>
             </form>
         </div>
-    </div>
     <script>
         function renameTenant(oldSlug, name) {
             var newSlug = prompt('将 "' + name + '" 的域名标识从 "' + oldSlug + '" 改为：\n\n（仅限字母和数字，改后需更新 DNS 解析）', oldSlug);
@@ -291,5 +163,8 @@
             form.submit();
         }
     </script>
+    </main>
+    </div>
+    <script src="/static/js/glass-core.js"></script>
 </body>
 </html>

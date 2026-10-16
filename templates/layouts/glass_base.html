@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ settings.title | default('歌单') }}{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/glass.css">
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="glass-app" data-song-count="{{ song_count | default(0) }}">
+    <div class="glass-bg" style="--glass-bg-image: url('{{ settings.background_url | default('/static/background.jpg') }}'); --glass-scrim-opacity: {{ (settings.background_scrim | default('40', true) | int) / 100 }}"></div>
+
+    <div class="glass-page">
+        {% block navbar %}
+        <nav class="glass-nav glass-chrome">
+            <a href="{{ settings.live_url | default('#') }}" {% if active_page == 'live' %}class="active"{% endif %}><i class="fas fa-tv"></i> 直播间</a>
+            <a href="/" {% if active_page == 'playlist' %}class="active"{% endif %}><i class="fas fa-music"></i> 歌单预览</a>
+            {% if show_history_link | default(false) %}
+            <a href="/history" {% if active_page == 'history' %}class="active"{% endif %}><i class="fas fa-book"></i> 垂名青史</a>
+            <a href="/rank" {% if active_page == 'rank' %}class="active"{% endif %}><i class="fas fa-trophy"></i> 圣人榜</a>
+            {% endif %}
+            <a href="/admin" {% if active_page == 'admin' %}class="active"{% endif %}><i class="fas fa-user-gear"></i> 管理后台</a>
+        </nav>
+        {% endblock %}
+
+        <main class="glass-main" id="glass-main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    {% block footer %}
+    <footer class="glass-footer">
+        <p>
+            <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">苏ICP备2026009705号-1</a>
+            ｜ 苏公网安备32021402004572号
+        </p>
+    </footer>
+    {% endblock %}
+
+    <div id="glass-toast" class="glass-toast">
+        <i class="fas fa-check-circle"></i>
+        <span id="glass-toast-msg">操作成功</span>
+    </div>
+
+    {% block overlays %}{% endblock %}
+
+    <script src="/static/js/glass-core.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

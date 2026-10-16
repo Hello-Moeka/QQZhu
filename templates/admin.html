@@ -4,258 +4,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>后台管理 - 歌单</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-image: url('{{ settings.background_url }}');
-            background-size: cover;
-            background-position: center;
-            background-attachment: fixed;
-            background-repeat: no-repeat;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            color: #333;
-        }
-        .navbar {
-            width: 100%;
-            background-color: rgba(255, 255, 255, 0.95);
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            padding: 15px 20px;
-            display: flex;
-            justify-content: center;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-        }
-        .navbar a {
-            color: #888;
-            text-decoration: none;
-            font-size: 18px;
-            margin: 0 25px;
-            padding: 10px 15px;
-            border-radius: 5px;
-            transition: background-color 0.3s, color 0.3s;
-        }
-        .navbar a:hover {
-            background-color: rgba(108, 122, 224, 0.1);
-            color: #6c7ae0;
-        }
-        .container {
-            background-color: rgba(255, 255, 255, 0.92);
-            padding: 24px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            width: 90%;
-            max-width: 1200px;
-            margin: 24px 0;
-        }
-        h1 {
-            margin-top: 0;
-            color: #6c7ae0;
-        }
-        .panel {
-            border: 1px solid #e5e5e5;
-            border-radius: 10px;
-            padding: 18px;
-            margin-bottom: 18px;
-            background: #fff;
-        }
-        .panel h2 {
-            margin: 0 0 12px;
-            font-size: 20px;
-            color: #444;
-        }
-        label {
-            display: block;
-            margin: 8px 0 4px;
-            font-weight: bold;
-            color: #444;
-        }
-        input[type="text"], input[type="number"], textarea {
-            width: 100%;
-            padding: 10px;
-            border-radius: 6px;
-            border: 1px solid #ccc;
-            box-sizing: border-box;
-            font-size: 14px;
-        }
-        .actions {
-            margin-top: 10px;
-            text-align: right;
-        }
-        button {
-            background-color: #6c7ae0;
-            color: #fff;
-            border: none;
-            padding: 10px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background-color 0.2s ease;
-        }
-        button:hover { background-color: #5763c6; }
-        .message {
-            margin-bottom: 12px;
-            padding: 10px 14px;
-            border-radius: 8px;
-            background: #eef2ff;
-            color: #3748a0;
-        }
-        .song-list { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 8px; border-bottom: 1px solid #e5e5e5; text-align: left; }
-        .small-input { width: 100%; max-width: 200px; }
-        .backup-box {
-            align-items: center;
-            align-items: center;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-        .tips { font-size: 13px; color: #666; margin-top: 4px; }
-        
-        .file-input {
-            position: relative;
-            overflow: hidden;
-            display: inline-block;
-        }
-        .file-input input[type="file"] {
-            position: absolute;
-            left: 0;
-            top: 0;
-            opacity: 0;
-            width: 100%;
-            height: 100%;
-            cursor: pointer;
-        }
-        .file-input .btn {
-            background-color: #f0f2ff;
-            color: #3748a0;
-            border: 1px solid #d0d6f5;
-            padding: 10px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 13px;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            min-width: 140px;
-            justify-content: center;
-            height: 20px;
-            line-height: 20px;
-            white-space: nowrap;
-        }
-        .file-input .btn:hover { background-color: #e4e8ff; }
-        
-        .info-link {
-            color: #6c7ae0;
-            text-decoration: none;
-            font-size: 13px;
-        }
-        .info-link:hover { text-decoration: underline; }
-        .file-input .btn #file-label {
-            max-width: 140px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            display: inline-block;
-        }
-        .file-input .filename {
-            margin-left: 8px;
-            font-size: 13px;
-            color: #555;
-        }
-        .backup-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-        .backup-actions {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        .btn-secondary {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 10px 14px;
-            border-radius: 6px;
-            background: #eef2ff;
-            color: #3748a0;
-            border: 1px solid #d0d6f5;
-            text-decoration: none;
-            font-size: 13px;
-            transition: background-color 0.2s ease;
-            min-width: 143px;
-            height: 20px;
-            line-height: 20px;
-            font-weight: 600;
-            justify-content: center;
-        }
-        .btn-secondary:hover { background: #e4e8ff; }
-
-        @media (max-width: 768px) {
-            .container { padding: 16px; }
-            .navbar a { margin: 0 10px; font-size: 16px; }
-            .small-input { max-width: 100%; }
-        }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/glass.css">
+    <link rel="stylesheet" href="/static/css/glass-admin.css">
 </head>
-<body>
-    <style>
-        /* Toast 提示样式 */
-        #toast-container {
-            position: fixed;
-            top: 16px;
-            right: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            z-index: 2000;
-            max-width: 320px;
-        }
-        .toast {
-            padding: 12px 14px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-            background: #f0f4ff;
-            color: #1f3b8e;
-            font-size: 14px;
-            border: 1px solid #d8e2ff;
-            animation: fadeIn 0.2s ease, slideIn 0.2s ease;
-        }
-        .toast.success { background: #e8f7ef; color: #1f7a3d; border-color: #c7edd8; }
-        .toast.error { background: #fdecea; color: #b23024; border-color: #f7c6c2; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideIn { from { transform: translateY(-6px); } to { transform: translateY(0); } }
-    </style>
-    <div id="toast-container"></div>
-    <div class="navbar">
-        <a href="/">歌单</a>
-        <a href="/admin">后台</a>
-        <a href="/admin/logout" style="color:#e74c3c;">退出登录</a>
-    </div>
+<body class="glass-app glass-admin-app">
+    <div class="glass-bg" style="--glass-bg-image: url('{{ settings.background_url }}'); --glass-scrim-opacity: {{ (settings.background_scrim | default('40', true) | int) / 100 }}"></div>
+    <div class="glass-page">
+        <nav class="glass-nav glass-chrome">
+            <a href="/"><i class="fas fa-music"></i> 歌单</a>
+            <a href="/admin" class="active"><i class="fas fa-user-gear"></i> 后台</a>
+            <a href="/admin/logout"><i class="fas fa-sign-out-alt"></i> 退出</a>
+        </nav>
+        <main class="glass-panel glass-admin" id="glass-main-content">
+        <h1 class="glass-admin__title">后台管理（歌单）</h1>
+        <p class="glass-admin__subtitle">使用配置文件中的 admin_token 访问；请求头也可传 <code>X-Admin-Token</code>。</p>
 
-    <div class="container">
-        <h1>后台管理（歌单）</h1>
-        <p style="font-size:13px;color:#666;">使用配置文件中的 admin_token 访问；请求头也可传 <code>X-Admin-Token</code>。</p>
+
+
 
         {% if message %}
         <div class="message">{{ message }}</div>
         {% endif %}
 
-        <div class="panel">
+        <div class="glass-admin__section">
             <h2>站点信息</h2>
             <form method="post" action="/admin/action" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="settings">
@@ -282,13 +57,22 @@
                 <label>上传歌手头像（可选）</label>
                 <input type="file" name="singer_file" accept="image/*">
 
+                <label for="background_scrim">背景遮罩强度 (0–80)</label>
+                <div class="scrim-control">
+                    <input type="range" id="background_scrim" name="background_scrim" min="0" max="80" step="1"
+                           value="{{ settings.background_scrim | default('40', true) }}"
+                           oninput="document.getElementById('background_scrim_value').textContent = this.value">
+                    <output id="background_scrim_value">{{ settings.background_scrim | default('40', true) }}</output>
+                </div>
+                <p class="tips">数值越大前台背景越暗、文字越清晰（默认 40）。保存后请打开歌单页查看效果。</p>
+
                 <div class="actions">
                     <button type="submit"><i class="fa fa-save"></i> 保存站点信息</button>
                 </div>
             </form>
         </div>
 
-        <div class="panel">
+        <div class="glass-admin__section">
             <h2>歌曲列表（编辑/删除）</h2>
             <div class="song-list">
                 <table id="songs">
@@ -353,7 +137,7 @@
             </div>
         </div>
 
-        <div class="panel">
+        <div class="glass-admin__section">
             <h2>备份 / 恢复</h2>
             <form method="post" action="/admin/action" class="backup-row" style="margin-bottom:10px;">
                 <input type="hidden" name="action" value="backup">
@@ -386,7 +170,7 @@
             </div>
         </div>
 
-        <div class="panel">
+        <div class="glass-admin__section">
             <h2>生成歌单长图</h2>
             <form method="post" action="/admin/action" class="backup-row" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="generate_playlist_image">
@@ -418,7 +202,7 @@
             </div>
         </div>
 
-        <div class="panel">
+        <div class="glass-admin__section">
             <h2>生成歌单小图（分页）</h2>
             <form method="post" action="/admin/action" class="backup-row" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="generate_playlist_pages">
@@ -452,7 +236,7 @@
             </div>
         </div>
 
-        <div class="panel">
+        <div class="glass-admin__section">
             <h2>安全</h2>
             <form method="post" action="/admin/action" class="backup-box" data-ajax="true" data-token-form="true" data-confirm="确定修改 admin_token 吗？修改后需重新登录">
                 <input type="hidden" name="action" value="update_admin_token">
@@ -464,7 +248,6 @@
                 <button type="submit" style="background:#e74c3c;"><i class="fa fa-key"></i> 更新</button>
             </form>
         </div>
-    </div>
     <script>
         const backupInput = document.getElementById('backup-file-input');
         const fileLabel = document.getElementById('file-label');
@@ -506,18 +289,13 @@
     <script>
         const csrfToken = "{{ csrf_token|e }}";
         const adminToken = "{{ token|e }}";
-        const toastContainer = document.getElementById('toast-container');
         const messageBox = document.querySelector('.message');
         function showToast(text, type = 'info') {
-            if (!text || !toastContainer) return;
-            const node = document.createElement('div');
-            node.className = `toast ${type}`;
-            node.textContent = text;
-            toastContainer.appendChild(node);
-            setTimeout(() => {
-                node.style.opacity = '0';
-                setTimeout(() => node.remove(), 180);
-            }, 2400);
+            if (!text) return;
+            if (window.GlassUI?.showToast) {
+                window.GlassUI.showToast(text);
+                return;
+            }
         }
         function setMessage(text, type = 'info') {
             if (messageBox) {
@@ -690,5 +468,12 @@
 
         bindSongForms();
     </script>
+    </main>
+    </div>
+    <div id="glass-toast" class="glass-toast">
+        <i class="fas fa-check-circle"></i>
+        <span id="glass-toast-msg">操作成功</span>
+    </div>
+    <script src="/static/js/glass-core.js"></script>
 </body>
 </html>
